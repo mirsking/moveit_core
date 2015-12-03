@@ -173,6 +173,7 @@ void planning_scene::PlanningScene::initialize()
   for (std::vector<srdf::Model::DisabledCollision>::const_iterator it = dc.begin(); it != dc.end(); ++it)
     acm_->setEntry(it->link1_, it->link2_, true);
 
+  //TODO: mirsking: here add the collisionDetector which default is FCL
   setActiveCollisionDetector(collision_detection::CollisionDetectorAllocatorFCL::create());
 }
 
