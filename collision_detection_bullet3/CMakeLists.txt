@@ -1,4 +1,9 @@
+set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules")
+
 set(MOVEIT_LIB_NAME moveit_collision_detection_bullet3)
+
+set(BULLET3_ROOT "/home/mirsking/projects/gpu/bullet3/")
+find_package(Bullet3)
 
 add_library(${MOVEIT_LIB_NAME}
   src/collision_common.cpp
