@@ -35,25 +35,24 @@
 /* Author: Mirs King */
 
 #include <moveit/collision_detection_bullet3/collision_world_bullet3.h>
-#include <bullet3/shape/geometric_shape_to_BVH_model.h>
-#include <bullet3/traversal/traversal_node_bvhs.h>
-#include <bullet3/traversal/traversal_node_setup.h>
-#include <bullet3/collision_node.h>
 
 collision_detection::CollisionWorldBULLET3::CollisionWorldBULLET3() :
   CollisionWorld()
 {
+    /*
   bullet3::DynamicAABBTreeCollisionManager* m = new bullet3::DynamicAABBTreeCollisionManager();
   // m->tree_init_level = 2;
   manager_.reset(m);
 
   // request notifications about changes to new world
   observer_handle_ = getWorld()->addObserver(boost::bind(&CollisionWorldBULLET3::notifyObjectChange, this, _1, _2));
+  */
 }
 
 collision_detection::CollisionWorldBULLET3::CollisionWorldBULLET3(const WorldPtr& world) :
   CollisionWorld(world)
 {
+    /*
   bullet3::DynamicAABBTreeCollisionManager* m = new bullet3::DynamicAABBTreeCollisionManager();
   // m->tree_init_level = 2;
   manager_.reset(m);
@@ -61,11 +60,13 @@ collision_detection::CollisionWorldBULLET3::CollisionWorldBULLET3(const WorldPtr
   // request notifications about changes to new world
   observer_handle_ = getWorld()->addObserver(boost::bind(&CollisionWorldBULLET3::notifyObjectChange, this, _1, _2));
   getWorld()->notifyObserverAllObjects(observer_handle_, World::CREATE);
+  */
 }
 
 collision_detection::CollisionWorldBULLET3::CollisionWorldBULLET3(const CollisionWorldBULLET3 &other, const WorldPtr& world) :
   CollisionWorld(other, world)
 {
+    /*
   logError("*******************=============init bullet3==============********************");
   bullet3::DynamicAABBTreeCollisionManager* m = new bullet3::DynamicAABBTreeCollisionManager();
   // m->tree_init_level = 2;
@@ -78,6 +79,7 @@ collision_detection::CollisionWorldBULLET3::CollisionWorldBULLET3(const Collisio
 
   // request notifications about changes to new world
   observer_handle_ = getWorld()->addObserver(boost::bind(&CollisionWorldBULLET3::notifyObjectChange, this, _1, _2));
+  */
 }
 
 collision_detection::CollisionWorldBULLET3::~CollisionWorldBULLET3()
@@ -107,6 +109,7 @@ void collision_detection::CollisionWorldBULLET3::checkRobotCollision(const Colli
 
 void collision_detection::CollisionWorldBULLET3::checkRobotCollisionHelper(const CollisionRequest &req, CollisionResult &res, const CollisionRobot &robot, const robot_state::RobotState &state, const AllowedCollisionMatrix *acm) const
 {
+    /*
   const CollisionRobotBULLET3 &robot_bullet3 = dynamic_cast<const CollisionRobotBULLET3&>(robot);
   BULLET3Object bullet3_obj;
   robot_bullet3.constructBULLET3Object(state, bullet3_obj);
@@ -118,6 +121,7 @@ void collision_detection::CollisionWorldBULLET3::checkRobotCollisionHelper(const
 
   if (req.distance)
     res.distance = distanceRobotHelper(robot, state, acm);
+    */
 }
 
 void collision_detection::CollisionWorldBULLET3::checkWorldCollision(const CollisionRequest &req, CollisionResult &res, const CollisionWorld &other_world) const
@@ -132,14 +136,19 @@ void collision_detection::CollisionWorldBULLET3::checkWorldCollision(const Colli
 
 void collision_detection::CollisionWorldBULLET3::checkWorldCollisionHelper(const CollisionRequest &req, CollisionResult &res, const CollisionWorld &other_world, const AllowedCollisionMatrix *acm) const
 {
+    /*
   const CollisionWorldBULLET3 &other_bullet3_world = dynamic_cast<const CollisionWorldBULLET3&>(other_world);
   CollisionData cd(&req, &res, acm);
   manager_->collide(other_bullet3_world.manager_.get(), &cd, &collisionCallback);
 
   if (req.distance)
     res.distance = distanceWorldHelper(other_world, acm);
-}
+    */
 
+    logError("checkWorldCollisionHelper: in progress");
+    res.collision = false;
+}
+/*
 void collision_detection::CollisionWorldBULLET3::constructBULLET3Object(const World::Object *obj, BULLET3Object &bullet3_obj) const
 {
   for (std::size_t i = 0 ; i < obj->shapes_.size() ; ++i)
@@ -153,7 +162,6 @@ void collision_detection::CollisionWorldBULLET3::constructBULLET3Object(const Wo
     }
   }
 }
-
 void collision_detection::CollisionWorldBULLET3::updateBULLET3Object(const std::string &id)
 {
   // remove BULLET3 objects that correspond to this object
@@ -188,9 +196,10 @@ void collision_detection::CollisionWorldBULLET3::updateBULLET3Object(const std::
 
   // manager_->update();
 }
-
+*/
 void collision_detection::CollisionWorldBULLET3::setWorld(const WorldPtr& world)
 {
+    /*
   if (world == getWorld())
     return;
 
@@ -209,10 +218,12 @@ void collision_detection::CollisionWorldBULLET3::setWorld(const WorldPtr& world)
 
   // get notifications any objects already in the new world
   getWorld()->notifyObserverAllObjects(observer_handle_, World::CREATE);
+  */
 }
 
 void collision_detection::CollisionWorldBULLET3::notifyObjectChange(const ObjectConstPtr& obj, World::Action action)
 {
+    /*
   if (action == World::DESTROY)
   {
     std::map<std::string, BULLET3Object>::iterator it = bullet3_objs_.find(obj->id_);
@@ -230,10 +241,12 @@ void collision_detection::CollisionWorldBULLET3::notifyObjectChange(const Object
     if (action & (World::DESTROY|World::REMOVE_SHAPE))
       cleanCollisionGeometryCache();
   }
+  */
 }
 
 double collision_detection::CollisionWorldBULLET3::distanceRobotHelper(const CollisionRobot &robot, const robot_state::RobotState &state, const AllowedCollisionMatrix *acm) const
 {
+    /*
   const CollisionRobotBULLET3& robot_bullet3 = dynamic_cast<const CollisionRobotBULLET3&>(robot);
   BULLET3Object bullet3_obj;
   robot_bullet3.constructBULLET3Object(state, bullet3_obj);
@@ -248,6 +261,10 @@ double collision_detection::CollisionWorldBULLET3::distanceRobotHelper(const Col
 
 
   return res.distance;
+  */
+
+    logError("distanceRobotHelper: in progress");
+    return 0.0;
 }
 
 double collision_detection::CollisionWorldBULLET3::distanceRobot(const CollisionRobot &robot, const robot_state::RobotState &state) const
@@ -272,6 +289,7 @@ double collision_detection::CollisionWorldBULLET3::distanceWorld(const Collision
 
 double collision_detection::CollisionWorldBULLET3::distanceWorldHelper(const CollisionWorld &other_world, const AllowedCollisionMatrix *acm) const
 {
+    /*
   const CollisionWorldBULLET3& other_bullet3_world = dynamic_cast<const CollisionWorldBULLET3&>(other_world);
   CollisionRequest req;
   CollisionResult res;
@@ -279,6 +297,10 @@ double collision_detection::CollisionWorldBULLET3::distanceWorldHelper(const Col
   manager_->distance(other_bullet3_world.manager_.get(), &cd, &distanceCallback);
 
   return res.distance;
+  */
+
+    logError("distanceWorldHelper: in progress");
+    return 0.0;
 }
 
 #include <moveit/collision_detection_bullet3/collision_detector_allocator_bullet3.h>

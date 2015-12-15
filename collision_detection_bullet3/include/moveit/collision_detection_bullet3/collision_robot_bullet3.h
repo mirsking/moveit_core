@@ -77,10 +77,12 @@ namespace collision_detection
 
   protected:
 
+    /*
     virtual void updatedPaddingOrScaling(const std::vector<std::string> &links);
     void constructBULLET3Object(const robot_state::RobotState &state, BULLET3Object &bullet3_obj) const;
     void allocSelfCollisionBroadPhase(const robot_state::RobotState &state, BULLET3Manager &manager) const;
     void getAttachedBodyObjects(const robot_state::AttachedBody *ab, std::vector<BULLET3GeometryConstPtr> &geoms) const;
+    */
 
     void checkSelfCollisionHelper(const CollisionRequest &req, CollisionResult &res, const robot_state::RobotState &state,
                                   const AllowedCollisionMatrix *acm) const;
@@ -91,7 +93,7 @@ namespace collision_detection
     double distanceOtherHelper(const robot_state::RobotState &state, const CollisionRobot &other_robot,
                                const robot_state::RobotState &other_state, const AllowedCollisionMatrix *acm) const;
 
-    std::vector<BULLET3GeometryConstPtr> geoms_;
+//    std::vector<BULLET3GeometryConstPtr> geoms_;
   };
 
 }

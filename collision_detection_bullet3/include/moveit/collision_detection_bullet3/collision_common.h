@@ -39,9 +39,6 @@
 
 #include <moveit/collision_detection/world.h>
 #include <moveit/collision_detection/collision_world.h>
-#include <bullet3/broadphase/broadphase.h>
-#include <bullet3/collision.h>
-#include <bullet3/distance.h>
 #include <set>
 
 namespace collision_detection
@@ -151,29 +148,29 @@ struct CollisionData
   bool                          done_;
 };
 
+namespace b3{
+typedef int CollisionGeometry;
+};
 
 struct BULLET3Geometry
 {
   BULLET3Geometry()
   {
   }
-
-  BULLET3Geometry(bullet3::CollisionGeometry *collision_geometry, const robot_model::LinkModel *link, int shape_index) :
+  // collision_geometry maps to bullet3's rigid body id
+  BULLET3Geometry(b3::CollisionGeometry collision_geometry, const robot_model::LinkModel *link, int shape_index) :
     collision_geometry_(collision_geometry), collision_geometry_data_(new CollisionGeometryData(link, shape_index))
   {
-    collision_geometry_->setUserData(collision_geometry_data_.get());
   }
 
-  BULLET3Geometry(bullet3::CollisionGeometry *collision_geometry, const robot_state::AttachedBody *ab, int shape_index) :
+  BULLET3Geometry(b3::CollisionGeometry collision_geometry, const robot_state::AttachedBody *ab, int shape_index) :
     collision_geometry_(collision_geometry), collision_geometry_data_(new CollisionGeometryData(ab, shape_index))
   {
-    collision_geometry_->setUserData(collision_geometry_data_.get());
   }
 
-  BULLET3Geometry(bullet3::CollisionGeometry *collision_geometry, const World::Object *obj, int shape_index) :
+  BULLET3Geometry(b3::CollisionGeometry collision_geometry, const World::Object *obj, int shape_index) :
     collision_geometry_(collision_geometry), collision_geometry_data_(new CollisionGeometryData(obj, shape_index))
   {
-    collision_geometry_->setUserData(collision_geometry_data_.get());
   }
 
   template<typename T>
@@ -183,35 +180,16 @@ struct BULLET3Geometry
       if (collision_geometry_data_->ptr.raw == reinterpret_cast<const void*>(data))
         return;
     collision_geometry_data_.reset(new CollisionGeometryData(data, shape_index));
-    collision_geometry_->setUserData(collision_geometry_data_.get());
+    //collision_geometry_->setUserData(collision_geometry_data_.get());
+    //TODO update geometry
   }
 
-  boost::shared_ptr<bullet3::CollisionGeometry> collision_geometry_;
+  b3::CollisionGeometry collision_geometry_;
   boost::shared_ptr<CollisionGeometryData>  collision_geometry_data_;
 };
 
 typedef boost::shared_ptr<BULLET3Geometry> BULLET3GeometryPtr;
 typedef boost::shared_ptr<const BULLET3Geometry> BULLET3GeometryConstPtr;
-
-struct BULLET3Object
-{
-  void registerTo(bullet3::BroadPhaseCollisionManager *manager);
-  void unregisterFrom(bullet3::BroadPhaseCollisionManager *manager);
-  void clear();
-
-  std::vector<boost::shared_ptr<bullet3::CollisionObject> > collision_objects_;
-  std::vector<BULLET3GeometryConstPtr> collision_geometry_;
-};
-
-struct BULLET3Manager
-{
-  BULLET3Object                                          object_;
-  boost::shared_ptr<bullet3::BroadPhaseCollisionManager> manager_;
-};
-
-bool collisionCallback(bullet3::CollisionObject *o1, bullet3::CollisionObject *o2, void *data);
-
-bool distanceCallback(bullet3::CollisionObject* o1, bullet3::CollisionObject* o2, void *data, double& min_dist);
 
 BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
                                             const robot_model::LinkModel *link,
@@ -228,47 +206,6 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
                                             const robot_state::AttachedBody *ab, int shape_index);
 BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
                                             const World::Object *obj);
-void cleanCollisionGeometryCache();
-
-inline void transform2bullet3(const Eigen::Affine3d &b, bullet3::Transform3f &f)
-{
-  Eigen::Quaterniond q(b.rotation());
-  f.setTranslation(bullet3::Vec3f(b.translation().x(), b.translation().y(), b.translation().z()));
-  f.setQuatRotation(bullet3::Quaternion3f(q.w(), q.x(), q.y(), q.z()));
-}
-
-inline bullet3::Transform3f transform2bullet3(const Eigen::Affine3d &b)
-{
-  bullet3::Transform3f t;
-  transform2bullet3(b, t);
-  return t;
-}
-
-inline void bullet32contact(const bullet3::Contact &fc, Contact &c)
-{
-  c.pos = Eigen::Vector3d(fc.pos[0], fc.pos[1], fc.pos[2]);
-  c.normal = Eigen::Vector3d(fc.normal[0], fc.normal[1], fc.normal[2]);
-  c.depth = fc.penetration_depth;
-  const CollisionGeometryData *cgd1 = static_cast<const CollisionGeometryData*>(fc.o1->getUserData());
-  c.body_name_1 = cgd1->getID();
-  c.body_type_1 = cgd1->type;
-  const CollisionGeometryData *cgd2 = static_cast<const CollisionGeometryData*>(fc.o2->getUserData());
-  c.body_name_2 = cgd2->getID();
-  c.body_type_2 = cgd2->type;
-}
-
-inline void bullet32costsource(const bullet3::CostSource &fcs, CostSource& cs)
-{
-  cs.aabb_min[0] = fcs.aabb_min[0];
-  cs.aabb_min[1] = fcs.aabb_min[1];
-  cs.aabb_min[2] = fcs.aabb_min[2];
-
-  cs.aabb_max[0] = fcs.aabb_max[0];
-  cs.aabb_max[1] = fcs.aabb_max[1];
-  cs.aabb_max[2] = fcs.aabb_max[2];
-
-  cs.cost = fcs.cost_density;
-}
 
 }
 

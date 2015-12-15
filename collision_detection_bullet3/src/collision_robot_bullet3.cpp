@@ -40,6 +40,7 @@ collision_detection::CollisionRobotBULLET3::CollisionRobotBULLET3(const robot_mo
   : CollisionRobot(model, padding, scale)
 {
   const std::vector<const robot_model::LinkModel*>& links = robot_model_->getLinkModelsWithCollisionGeometry();
+  /*
   geoms_.resize(robot_model_->getLinkGeometryCount());
   // we keep the same order of objects as what RobotState *::getLinkState() returns
   for (std::size_t i = 0 ; i < links.size() ; ++i)
@@ -51,13 +52,14 @@ collision_detection::CollisionRobotBULLET3::CollisionRobotBULLET3(const robot_mo
       else
         logError("Unable to construct collision geometry for link '%s'", links[i]->getName().c_str());
     }
+    */
 }
 
 collision_detection::CollisionRobotBULLET3::CollisionRobotBULLET3(const CollisionRobotBULLET3 &other) : CollisionRobot(other)
 {
-  geoms_ = other.geoms_;
+  //geoms_ = other.geoms_;
 }
-
+/*
 void collision_detection::CollisionRobotBULLET3::getAttachedBodyObjects(const robot_state::AttachedBody *ab, std::vector<BULLET3GeometryConstPtr> &geoms) const
 {
   const std::vector<shapes::ShapeConstPtr> &shapes = ab->getShapes();
@@ -110,6 +112,7 @@ void collision_detection::CollisionRobotBULLET3::allocSelfCollisionBroadPhase(co
   manager.object_.registerTo(manager.manager_.get());
   // manager.manager_->update();
 }
+*/
 
 void collision_detection::CollisionRobotBULLET3::checkSelfCollision(const CollisionRequest &req, CollisionResult &res, const robot_state::RobotState &state) const
 {
@@ -135,6 +138,7 @@ void collision_detection::CollisionRobotBULLET3::checkSelfCollision(const Collis
 void collision_detection::CollisionRobotBULLET3::checkSelfCollisionHelper(const CollisionRequest &req, CollisionResult &res, const robot_state::RobotState &state,
                                                                       const AllowedCollisionMatrix *acm) const
 {
+    /*
   BULLET3Manager manager;
   allocSelfCollisionBroadPhase(state, manager);
   CollisionData cd(&req, &res, acm);
@@ -142,6 +146,9 @@ void collision_detection::CollisionRobotBULLET3::checkSelfCollisionHelper(const 
   manager.manager_->collide(&cd, &collisionCallback);
   if (req.distance)
     res.distance = distanceSelfHelper(state, acm);
+ */
+    logError("checkSelfCollisionHelper: in progress");
+    res.collision = false;
 }
 
 void collision_detection::CollisionRobotBULLET3::checkOtherCollision(const CollisionRequest &req, CollisionResult &res, const robot_state::RobotState &state,
@@ -174,6 +181,7 @@ void collision_detection::CollisionRobotBULLET3::checkOtherCollisionHelper(const
                                                                        const CollisionRobot &other_robot, const robot_state::RobotState &other_state,
                                                                        const AllowedCollisionMatrix *acm) const
 {
+    /*
   BULLET3Manager manager;
   allocSelfCollisionBroadPhase(state, manager);
 
@@ -187,8 +195,11 @@ void collision_detection::CollisionRobotBULLET3::checkOtherCollisionHelper(const
     manager.manager_->collide(other_bullet3_obj.collision_objects_[i].get(), &cd, &collisionCallback);
   if (req.distance)
     res.distance = distanceOtherHelper(state, other_robot, other_state, acm);
+    */
+    logError("checkOtherCollisionHelper: in progress");
+    res.collision = false;
 }
-
+/*
 void collision_detection::CollisionRobotBULLET3::updatedPaddingOrScaling(const std::vector<std::string> &links)
 {
   for (std::size_t i = 0 ; i < links.size() ; ++i)
@@ -207,6 +218,7 @@ void collision_detection::CollisionRobotBULLET3::updatedPaddingOrScaling(const s
       logError("Updating padding or scaling for unknown link: '%s'", links[i].c_str());
   }
 }
+*/
 
 double collision_detection::CollisionRobotBULLET3::distanceSelf(const robot_state::RobotState &state) const
 {
@@ -222,6 +234,7 @@ double collision_detection::CollisionRobotBULLET3::distanceSelf(const robot_stat
 double collision_detection::CollisionRobotBULLET3::distanceSelfHelper(const robot_state::RobotState &state,
                                                                   const AllowedCollisionMatrix *acm) const
 {
+    /*
   BULLET3Manager manager;
   allocSelfCollisionBroadPhase(state, manager);
 
@@ -233,6 +246,9 @@ double collision_detection::CollisionRobotBULLET3::distanceSelfHelper(const robo
   manager.manager_->distance(&cd, &distanceCallback);
 
   return res.distance;
+  */
+    logError("DistanceSelfHelper: in progress");
+    return 0.0;
 }
 
 double collision_detection::CollisionRobotBULLET3::distanceOther(const robot_state::RobotState &state,
@@ -255,6 +271,7 @@ double collision_detection::CollisionRobotBULLET3::distanceOtherHelper(const rob
                                                                    const robot_state::RobotState &other_state,
                                                                    const AllowedCollisionMatrix *acm) const
 {
+    /*
   BULLET3Manager manager;
   allocSelfCollisionBroadPhase(state, manager);
 
@@ -270,4 +287,7 @@ double collision_detection::CollisionRobotBULLET3::distanceOtherHelper(const rob
     manager.manager_->distance(other_bullet3_obj.collision_objects_[i].get(), &cd, &distanceCallback);
 
   return res.distance;
+  */
+    logError("DistanceOtherHelper: in progress");
+    return 0.0;
 }

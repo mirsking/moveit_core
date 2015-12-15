@@ -38,7 +38,6 @@
 #define MOVEIT_COLLISION_DETECTION_BULLET3_COLLISION_WORLD_BULLET3_
 
 #include <moveit/collision_detection_bullet3/collision_robot_bullet3.h>
-#include <bullet3/broadphase/broadphase.h>
 #include <boost/scoped_ptr.hpp>
 
 namespace collision_detection
@@ -75,12 +74,15 @@ namespace collision_detection
     double distanceRobotHelper(const CollisionRobot &robot, const robot_state::RobotState &state, const AllowedCollisionMatrix *acm) const;
     double distanceWorldHelper(const CollisionWorld &world, const AllowedCollisionMatrix *acm) const;
 
+    /*
     void constructBULLET3Object(const World::Object *obj, BULLET3Object &bullet3_obj) const;
     void updateBULLET3Object(const std::string &id);
+    */
 
-
+/*
     boost::scoped_ptr<bullet3::BroadPhaseCollisionManager> manager_;
     std::map<std::string, BULLET3Object >                  bullet3_objs_;
+    */
 
   private:
     void initialize();
