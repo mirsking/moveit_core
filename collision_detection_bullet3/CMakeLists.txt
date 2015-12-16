@@ -44,7 +44,7 @@ install(TARGETS ${MOVEIT_LIB_NAME}
 install(DIRECTORY include/
   DESTINATION include)
   
-#if(CATKIN_ENABLE_TESTING)
-#  catkin_add_gtest(test_fcl_collision_detection test/test_fcl_collision_detection.cpp)
-#  target_link_libraries(test_fcl_collision_detection  ${MOVEIT_LIB_NAME} ${Boost_LIBRARIES})
-#endif()
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_bullet3_collision_detection test/test_bullet3_collision_detection.cpp)
+  target_link_libraries(test_bullet3_collision_detection  ${MOVEIT_LIB_NAME} ${Boost_LIBRARIES})
+endif()

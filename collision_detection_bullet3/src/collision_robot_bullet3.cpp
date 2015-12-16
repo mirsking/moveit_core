@@ -35,29 +35,32 @@
 /* Author: Mirs King */
 
 #include <moveit/collision_detection_bullet3/collision_robot_bullet3.h>
+#include <Bullet3OpenCL/RigidBody/b3GpuNarrowPhase.h>
 
-collision_detection::CollisionRobotBULLET3::CollisionRobotBULLET3(const robot_model::RobotModelConstPtr &model, double padding, double scale) 
+collision_detection::CollisionRobotBULLET3::CollisionRobotBULLET3(const robot_model::RobotModelConstPtr &model, double padding, double scale)
   : CollisionRobot(model, padding, scale)
 {
+  b3Config config;
+  manager_ = b3GpuCollisionDetectionManager::Ptr(new b3GpuCollisionDetectionManager(config));
+
   const std::vector<const robot_model::LinkModel*>& links = robot_model_->getLinkModelsWithCollisionGeometry();
-  /*
   geoms_.resize(robot_model_->getLinkGeometryCount());
   // we keep the same order of objects as what RobotState *::getLinkState() returns
   for (std::size_t i = 0 ; i < links.size() ; ++i)
     for (std::size_t j = 0 ; j < links[i]->getShapes().size() ; ++j)
     {
-      BULLET3GeometryConstPtr g = createCollisionGeometry(links[i]->getShapes()[j], getLinkScale(links[i]->getName()), getLinkPadding(links[i]->getName()), links[i], j);
+      BULLET3GeometryConstPtr g = createCollisionGeometry(links[i]->getShapes()[j], getLinkScale(links[i]->getName()), getLinkPadding(links[i]->getName()), links[i], j, manager_);
       if (g)
         geoms_[links[i]->getFirstCollisionBodyTransformIndex() + j] = g;
       else
-        logError("Unable to construct collision geometry for link '%s'", links[i]->getName().c_str());
+        logError("Unable to construct collision geometry for link '%s'\n", links[i]->getName().c_str());
     }
-    */
 }
 
 collision_detection::CollisionRobotBULLET3::CollisionRobotBULLET3(const CollisionRobotBULLET3 &other) : CollisionRobot(other)
 {
-  //geoms_ = other.geoms_;
+  geoms_ = other.geoms_;
+  manager_ = other.manager_;
 }
 /*
 void collision_detection::CollisionRobotBULLET3::getAttachedBodyObjects(const robot_state::AttachedBody *ab, std::vector<BULLET3GeometryConstPtr> &geoms) const
@@ -127,28 +130,74 @@ void collision_detection::CollisionRobotBULLET3::checkSelfCollision(const Collis
 
 void collision_detection::CollisionRobotBULLET3::checkSelfCollision(const CollisionRequest &req, CollisionResult &res, const robot_state::RobotState &state1, const robot_state::RobotState &state2) const
 {
-  logError("BULLET3 continuous collision checking not yet implemented");
+  logError("BULLET3 continuous collision checking not yet implemented\n");
 }
 
 void collision_detection::CollisionRobotBULLET3::checkSelfCollision(const CollisionRequest &req, CollisionResult &res, const robot_state::RobotState &state1, const robot_state::RobotState &state2, const AllowedCollisionMatrix &acm) const
 {
-  logError("BULLET3 continuous collision checking not yet implemented");
+  logError("BULLET3 continuous collision checking not yet implemented\n");
 }
 
 void collision_detection::CollisionRobotBULLET3::checkSelfCollisionHelper(const CollisionRequest &req, CollisionResult &res, const robot_state::RobotState &state,
                                                                       const AllowedCollisionMatrix *acm) const
 {
-    /*
-  BULLET3Manager manager;
-  allocSelfCollisionBroadPhase(state, manager);
-  CollisionData cd(&req, &res, acm);
-  cd.enableGroup(getRobotModel());
-  manager.manager_->collide(&cd, &collisionCallback);
   if (req.distance)
-    res.distance = distanceSelfHelper(state, acm);
- */
-    logError("checkSelfCollisionHelper: in progress");
-    res.collision = false;
+  {
+    res.distance = 0.0;
+    logError("distance require in collision detection is not supported yet!\n");
+  }
+  BULLET3Objects b3_objs;
+  constructBULLET3Object(state, b3_objs);
+
+  res.collision = manager_->calculateCollision();
+
+  logError("checkSelfCollisionHelper result: %d\n", res.collision);
+}
+
+
+void collision_detection::CollisionRobotBULLET3::constructBULLET3Object(const robot_state::RobotState &state, BULLET3Objects &bullet3_objs) const
+{
+  bullet3_objs.collision_objects_.reserve(geoms_.size());
+
+  for (std::size_t i = 0 ; i < geoms_.size() ; ++i)
+    if (geoms_[i] && geoms_[i]->collision_geometry_id_ != -1)
+    {
+      float position[3], orientation[4];
+      transform2bullet3(state.getCollisionBodyTransform(geoms_[i]->collision_geometry_data_->ptr.link, geoms_[i]->collision_geometry_data_->shape_index), position, orientation);
+
+      //get Aabb
+      b3Aabb aabb = manager_->m_data->m_narrowphase->getLocalSpaceAabb(geoms_[i]->collision_geometry_id_);
+
+      b3::CollisionObject collObj =  manager_->m_data->m_narrowphase->registerRigidBody(
+        geoms_[i]->collision_geometry_id_,
+                  0.0,// mass
+                  position,
+                  orientation,
+                  aabb.m_min,
+                  aabb.m_max,
+                  false);
+      bullet3_objs.collision_objects_.push_back(collObj);
+      // the CollisionGeometryData is already stored in the class member geoms_, so we need not copy it
+    }
+/*
+  std::vector<const robot_state::AttachedBody*> ab;
+  state.getAttachedBodies(ab);
+  for (std::size_t j = 0 ; j < ab.size() ; ++j)
+  {
+    std::vector<BULLET3GeometryConstPtr> objs;
+    getAttachedBodyObjects(ab[j], objs);
+    const EigenSTL::vector_Affine3d &ab_t = ab[j]->getGlobalCollisionBodyTransforms();
+    for (std::size_t k = 0 ; k < objs.size() ; ++k)
+      if (objs[k]->collision_geometry_)
+      {
+        bullet3::CollisionObject *collObj = new bullet3::CollisionObject(objs[k]->collision_geometry_, transform2bullet3(ab_t[k]));
+        bullet3_obj.collision_objects_.push_back(boost::shared_ptr<bullet3::CollisionObject>(collObj));
+        // we copy the shared ptr to the CollisionGeometryData, as this is not stored by the class itself,
+        // and would be destroyed when objs goes out of scope.
+        bullet3_obj.collision_geometry_.push_back(objs[k]);
+      }
+  }
+*/
 }
 
 void collision_detection::CollisionRobotBULLET3::checkOtherCollision(const CollisionRequest &req, CollisionResult &res, const robot_state::RobotState &state,

@@ -20,12 +20,18 @@ subject to the following restrictions:
 
 #include "b3GpuCollisionDetectionManagerInternalData.h"
 #include "Bullet3OpenCL/Initialize/b3OpenCLUtils.h"
+#include <boost/shared_ptr.hpp>
 
 class b3GpuCollisionDetectionManager
 {
 public:
+    typedef boost::shared_ptr<b3GpuCollisionDetectionManager> Ptr;
+    typedef boost::shared_ptr<const b3GpuCollisionDetectionManager> ConstPtr;
+public:
     b3GpuCollisionDetectionManager(const b3Config& config);
     ~b3GpuCollisionDetectionManager();
+
+    bool calculateCollision();
 
 private:
     void initCL(int preferredDeviceIndex=-1, int preferredPlatformIndex=-1)
@@ -68,7 +74,9 @@ private:
         }
     }
 
-protected:
+    void initBroadPhase();
+
+public:
     struct b3GpuCollisionDetectionInternalData* m_data;
 };
 

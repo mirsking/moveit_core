@@ -16,6 +16,7 @@ subject to the following restrictions:
 #include <moveit/collision_detection_bullet3/CollisionDetectionManager/b3GpuCollisionDetectionManager.h>
 #include "Bullet3OpenCL/BroadphaseCollision/b3GpuSapBroadphase.h"
 #include "Bullet3OpenCL/RigidBody/b3GpuNarrowPhase.h"
+#include "Bullet3Collision/NarrowPhaseCollision/shared/b3RigidBodyData.h"
 
 #include "Bullet3OpenCL/RigidBody/kernels/integrateKernel.h"
 #include "Bullet3OpenCL/RigidBody/kernels/updateAabbsKernel.h"
@@ -75,5 +76,45 @@ b3GpuCollisionDetectionManager::~b3GpuCollisionDetectionManager()
 
     exitCL();
     delete m_data;
+}
+
+
+bool b3GpuCollisionDetectionManager::calculateCollision()
+{
+    initBroadPhase();
+    m_data->m_broadphase->writeAabbsToGpu();
+    m_data->m_broadphase->calculateOverlappingPairs(m_data->m_config.m_maxBroadphasePairs);
+
+    b3Printf("get %d pairs collision by broadphase calculate", m_data->m_broadphase->getNumOverlap());
+
+    m_data->m_narrowphase->computeContacts(
+                m_data->m_broadphase->getOverlappingPairBuffer(),
+                m_data->m_broadphase->getNumOverlap(),
+                m_data->m_broadphase->getAabbBufferWS(),
+                m_data->m_narrowphase->getNumRigidBodies()); // don't know object num's meaning
+
+
+    b3Printf("get %d contacts by narrowphase calculate", m_data->m_narrowphase->getNumContactsGpu());
+    int res = m_data->m_narrowphase->getNumContactsGpu();
+    if(res > 0)
+        return true;
+    else
+        return false;
+}
+
+void b3GpuCollisionDetectionManager::initBroadPhase()
+{
+    int num_bodies = m_data->m_narrowphase->getNumRigidBodies();
+    const b3RigidBodyData_t* rigidbody = m_data->m_narrowphase->getBodiesCpu();
+    const b3SapAabb* aabbs = m_data->m_narrowphase->getLocalSpaceAabbsCpu();
+    for(int i=0;i<num_bodies; i++)
+    {
+        // use create or createLarge ?
+        const b3RigidBodyData_t* rb = &rigidbody[i];
+        const b3SapAabb aabb = aabbs[rb->m_collidableIdx];
+        b3Vector3 aabbMin = b3MakeVector3(aabb.m_min[0], aabb.m_min[1], aabb.m_min[2]);
+        b3Vector3 aabbMax = b3MakeVector3(aabb.m_max[0], aabb.m_max[1], aabb.m_max[2]);
+        m_data->m_broadphase->createProxy(aabbMin, aabbMax, i, 0, 0);
+    }
 }
 

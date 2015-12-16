@@ -93,7 +93,10 @@ namespace collision_detection
     double distanceOtherHelper(const robot_state::RobotState &state, const CollisionRobot &other_robot,
                                const robot_state::RobotState &other_state, const AllowedCollisionMatrix *acm) const;
 
-//    std::vector<BULLET3GeometryConstPtr> geoms_;
+    void constructBULLET3Object(const robot_state::RobotState &state, BULLET3Objects &bullet3_objs) const;
+    std::vector<BULLET3GeometryConstPtr> geoms_;
+
+    b3GpuCollisionDetectionManager::Ptr manager_;
   };
 
 }

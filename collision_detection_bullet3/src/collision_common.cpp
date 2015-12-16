@@ -36,6 +36,8 @@
 
 #include <moveit/collision_detection_bullet3/collision_common.h>
 #include <boost/thread/mutex.hpp>
+#include <Bullet3OpenCL/RigidBody/b3GpuNarrowPhase.h>
+#include <Bullet3OpenCL/RigidBody/b3GpuNarrowPhaseInternalData.h>
 
 namespace collision_detection
 {
@@ -91,7 +93,8 @@ struct IfSameType<T, T>
 };
 
 template<typename BV, typename T>
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, const T *data, int shape_index)
+BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, const T *data, int shape_index,
+                                                b3GpuCollisionDetectionManager::ConstPtr manager)
 {
   BULLET3ShapeCache &cache = GetShapeCache<BV, T>();
 
@@ -198,6 +201,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
         const shapes::Plane* p = static_cast<const shapes::Plane*>(shape.get());
         //cg_g = new bullet3::Plane(p->a, p->b, p->c, p->d);
         //TODO: new bullet3 rigid
+        logError("This shape type (%d: PLANE) is not supported using BULLET3 yet", (int)shape->type);
       }
       break;
     default:
@@ -213,6 +217,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
         const shapes::Sphere* s = static_cast<const shapes::Sphere*>(shape.get());
         //cg_g = new bullet3::Sphere(s->radius);
         //TODO: new bullet3 rigid
+        logError("This shape type (%d: SPHERE) is not supported using BULLET3 yet", (int)shape->type);
       }
       break;
     case shapes::BOX:
@@ -221,6 +226,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
         const double* size = s->size;
         //cg_g = new bullet3::Box(size[0], size[1], size[2]);
         //TODO: new bullet3 rigid
+        logError("This shape type (%d: BOX) is not supported using BULLET3 yet", (int)shape->type);
       }
       break;
     case shapes::CYLINDER:
@@ -228,6 +234,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
         const shapes::Cylinder* s = static_cast<const shapes::Cylinder*>(shape.get());
         //cg_g = new bullet3::Cylinder(s->radius, s->length);
         //TODO: new bullet3 rigid
+        logError("This shape type (%d: CYLINDER) is not supported using BULLET3 yet", (int)shape->type);
       }
       break;
     case shapes::CONE:
@@ -235,30 +242,28 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
         const shapes::Cone* s = static_cast<const shapes::Cone*>(shape.get());
         //cg_g = new bullet3::Cone(s->radius, s->length);
         //TODO: new bullet3 rigid
+        logError("This shape type (%d: CONE) is not supported using BULLET3 yet", (int)shape->type);
       }
       break;
     case shapes::MESH:
       {
-        /*
-        bullet3::BVHModel<BV>* g = new bullet3::BVHModel<BV>();
+        logError("loading shape type (%d: MESH)", (int)shape->type);
+        b3AlignedObjectArray<b3Vector3> b3_mesh_vertices;
+        b3AlignedObjectArray<int> b3_mesh_indices;
         const shapes::Mesh *mesh = static_cast<const shapes::Mesh*>(shape.get());
-        if (mesh->vertex_count > 0 && mesh->triangle_count > 0)
+        if(mesh->vertex_count>0 && mesh->triangle_count>0)
         {
-          std::vector<bullet3::Triangle> tri_indices(mesh->triangle_count);
-          for(unsigned int i = 0; i < mesh->triangle_count; ++i)
-            tri_indices[i] = bullet3::Triangle(mesh->triangles[3 * i], mesh->triangles[3 * i + 1], mesh->triangles[3 * i + 2]);
-
-          std::vector<bullet3::Vec3f> points(mesh->vertex_count);
-          for (unsigned int i = 0; i < mesh->vertex_count; ++i)
-            points[i] = bullet3::Vec3f(mesh->vertices[3 * i], mesh->vertices[3 * i + 1], mesh->vertices[3 * i + 2]);
-
-          g->beginModel();
-          g->addSubModel(points, tri_indices);
-          g->endModel();
+            for(int i=0;i<mesh->vertex_count; i++)
+            {
+                b3Vector3 vt = b3MakeVector3(mesh->vertices[3*i],
+                        mesh->vertices[3*i+1],
+                        mesh->vertices[3*i+2]);
+                b3_mesh_vertices.push_back(vt);
+                b3_mesh_indices.push_back(i);
+            }
+            float scale[] = {1, 1, 1};
+            cg_g = manager->m_data->m_narrowphase->registerConcaveMesh(&b3_mesh_vertices, &b3_mesh_indices, scale);
         }
-        cg_g = g;
-        */
-        //TODO: new bullet3 rigid
       }
       break;
     case shapes::OCTREE:
@@ -266,6 +271,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
         const shapes::OcTree* g = static_cast<const shapes::OcTree*>(shape.get());
         //cg_g = new bullet3::OcTree(g->octree);
         //TODO: new bullet3 rigid
+        logError("This shape type (%d: OCTREE) is not supported using BULLET3 yet", (int)shape->type);
       }
       break;
     default:
@@ -275,7 +281,6 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
   }
   if (cg_g!=-1)
   {
-    //cg_g->computeLocalAABB();
     BULLET3GeometryConstPtr res(new BULLET3Geometry(cg_g, data, shape_index));
     boost::mutex::scoped_lock slock(cache.lock_);
     cache.map_[wptr] = res;
@@ -287,74 +292,76 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
 
 
 /////////////////////////////////////////////////////
-/*
 BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
                                             const robot_model::LinkModel *link,
-                                            int shape_index)
+                                            int shape_index,
+                                                b3GpuCollisionDetectionManager::ConstPtr manager)
 {
-  return createCollisionGeometry<bullet3::OBBRSS, robot_model::LinkModel>(shape, link, shape_index);
+  return createCollisionGeometry<b3Aabb, robot_model::LinkModel>(shape, link, shape_index, manager);//b3Aabb is just a placeholder
 }
-
 BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
                                             const robot_state::AttachedBody *ab,
-                                            int shape_index)
+                                            int shape_index,
+                                                b3GpuCollisionDetectionManager::ConstPtr manager)
 {
-  return createCollisionGeometry<bullet3::OBBRSS, robot_state::AttachedBody>(shape, ab, shape_index);
+  return createCollisionGeometry<b3Aabb, robot_state::AttachedBody>(shape, ab, shape_index, manager);
 }
 
 BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
-                                            const World::Object *obj)
+                                            const World::Object *obj,
+                                                b3GpuCollisionDetectionManager::ConstPtr manager)
 {
-  return createCollisionGeometry<bullet3::OBBRSS, World::Object>(shape, obj, 0);
+  return createCollisionGeometry<b3Aabb, World::Object>(shape, obj, 0, manager);
 }
-*/
-/*
+
 template<typename BV, typename T>
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding, const T *data, int shape_index)
+BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding, const T *data, int shape_index,
+                                                b3GpuCollisionDetectionManager::ConstPtr manager)
 {
-  if (fabs(scale - 1.0) <= std::numeric_limits<double>::epsilon() && fabs(padding) <= std::numeric_limits<double>::epsilon())
-    return createCollisionGeometry<BV, T>(shape, data, shape_index);
+  if (std::fabs(scale - 1.0) <= std::numeric_limits<double>::epsilon() && std::fabs(padding) <= std::numeric_limits<double>::epsilon())
+    return createCollisionGeometry<BV, T>(shape, data, shape_index, manager);
   else
   {
     boost::shared_ptr<shapes::Shape> scaled_shape(shape->clone());
     scaled_shape->scaleAndPadd(scale, padding);
-    return createCollisionGeometry<BV, T>(scaled_shape, data, shape_index);
+    return createCollisionGeometry<BV, T>(scaled_shape, data, shape_index, manager);
   }
 }
 
 BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
-                                            const robot_model::LinkModel *link, int shape_index)
+                                            const robot_model::LinkModel *link, int shape_index,
+                                                b3GpuCollisionDetectionManager::ConstPtr manager)
 {
-  return createCollisionGeometry<bullet3::OBBRSS, robot_model::LinkModel>(shape, scale, padding, link, shape_index);
+  return createCollisionGeometry<b3Aabb, robot_model::LinkModel>(shape, scale, padding, link, shape_index, manager);
 }
 
 BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
-                                            const robot_state::AttachedBody *ab, int shape_index)
+                                            const robot_state::AttachedBody *ab, int shape_index,
+                                                b3GpuCollisionDetectionManager::ConstPtr manager)
 {
-  return createCollisionGeometry<bullet3::OBBRSS, robot_state::AttachedBody>(shape, scale, padding, ab, shape_index);
+  return createCollisionGeometry<b3Aabb, robot_state::AttachedBody>(shape, scale, padding, ab, shape_index, manager);
 }
 
 BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
-                                            const World::Object *obj)
+                                            const World::Object *obj,
+                                                b3GpuCollisionDetectionManager::ConstPtr manager)
 {
-  return createCollisionGeometry<bullet3::OBBRSS, World::Object>(shape, scale, padding, obj, 0);
+  return createCollisionGeometry<b3Aabb, World::Object>(shape, scale, padding, obj, 0, manager);
 }
-*/
 
-/*
 void cleanCollisionGeometryCache()
 {
-  BULLET3ShapeCache &cache1 = GetShapeCache<bullet3::OBBRSS, World::Object>();
+  BULLET3ShapeCache &cache1 = GetShapeCache<b3Aabb, World::Object>();
   {
     boost::mutex::scoped_lock slock(cache1.lock_);
     cache1.bumpUseCount(true);
   }
-  BULLET3ShapeCache &cache2 = GetShapeCache<bullet3::OBBRSS, robot_state::AttachedBody>();
+  BULLET3ShapeCache &cache2 = GetShapeCache<b3Aabb, robot_state::AttachedBody>();
   {
     boost::mutex::scoped_lock slock(cache2.lock_);
     cache2.bumpUseCount(true);
   }
 }
-*/
+
 
 }
