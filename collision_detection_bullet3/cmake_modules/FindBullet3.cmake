@@ -51,10 +51,12 @@ macro(_FIND_BULLET3_LIBRARY _var)
   find_library(${_var}
      NAMES
         ${ARGN}
+        ${ARGN}_clew
      HINTS
-	${BULLET3_ROOT}/bin
+        ${BULLET3_ROOT}/qtbuild/src/${ARGN}
+        PATH_SUFFIXES lib
   )
-  mark_as_advanced(${_var})
+  mark_as_advanced(${_var}_clew)
 endmacro()
 
 macro(_BULLET3_APPEND_LIBRARIES _list _release)
@@ -73,11 +75,11 @@ find_path(BULLET3_INCLUDE_DIR NAMES btBulletCollisionCommon.h
 
 # Find the libraries
 
-_FIND_BULLET3_LIBRARY(BULLET3_COMMON_LIBRARY          libBullet3Common_gmake_x64_release.a)
-_FIND_BULLET3_LIBRARY(BULLET3_GEOMETRY_LIBRARY        libBullet3Geometry_gmake_x64_release.a)
-_FIND_BULLET3_LIBRARY(BULLET3_DYNAMICS_LIBRARY        libBullet3Dynamics_gmake_x64_release.a)
-_FIND_BULLET3_LIBRARY(BULLET3_COLLISION_LIBRARY       libBullet3Collision_gmake_x64_release.a)
-_FIND_BULLET3_LIBRARY(BULLET3_OPENCL_LIBRARY          libBullet3OpenCL_clew_gmake_x64_release.a)
+_FIND_BULLET3_LIBRARY(BULLET3_COMMON_LIBRARY          Bullet3Common)
+_FIND_BULLET3_LIBRARY(BULLET3_GEOMETRY_LIBRARY        Bullet3Geometry)
+_FIND_BULLET3_LIBRARY(BULLET3_DYNAMICS_LIBRARY        Bullet3Dynamics)
+_FIND_BULLET3_LIBRARY(BULLET3_COLLISION_LIBRARY       Bullet3Collision)
+_FIND_BULLET3_LIBRARY(BULLET3_OPENCL_LIBRARY          Bullet3OpenCL)
 
 
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(Bullet3 DEFAULT_MSG
