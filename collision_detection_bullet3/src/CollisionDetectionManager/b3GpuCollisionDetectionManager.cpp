@@ -137,6 +137,9 @@ void b3GpuCollisionDetectionManager::initBroadPhase()
                                  m_data->m_narrowphase->getCollidablesCpu(),
                                  m_data->m_narrowphase->getLocalSpaceAabbsCpu(),
                                  &m_data->m_broadphase->getAllAabbsCPU()[0]);
+            b3SapAabb aabb = m_data->m_broadphase->getAllAabbsCPU()[i];
+           b3Warning("%f %f %f %f\n", aabb.m_min[0], aabb.m_min[1], aabb.m_min[2], aabb.m_min[3]);
+           b3Warning("%f %f %f %f\n", aabb.m_max[0], aabb.m_max[1], aabb.m_max[2], aabb.m_max[3]);
         }
         m_data->m_broadphase->getAllAabbsGPU().copyFromHost(m_data->m_broadphase->getAllAabbsCPU());
         //m_data->m_broadphaseSap->writeAabbsToGpu();
