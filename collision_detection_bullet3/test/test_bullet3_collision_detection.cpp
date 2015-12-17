@@ -126,7 +126,7 @@ protected:
   std::string kinect_dae_resource_;
 };
 
-
+/*
 TEST_F(Bullet3CollisionDetectionTester, InitOK)
 {
   ASSERT_TRUE(urdf_ok_);
@@ -144,7 +144,7 @@ TEST_F(Bullet3CollisionDetectionTester, DefaultNotInCollision)
   crobot_->checkSelfCollision(req, res, kstate, *acm_);
   ASSERT_FALSE(res.collision);
 }
-
+*/
 
 TEST_F(Bullet3CollisionDetectionTester, LinksInCollision)
 {
@@ -188,7 +188,7 @@ TEST_F(Bullet3CollisionDetectionTester, LinksInCollision)
   ASSERT_TRUE(res3.collision);
 }
 
-
+/*
 TEST_F(Bullet3CollisionDetectionTester, ContactReporting)
 {
   collision_detection::CollisionRequest req;
@@ -311,7 +311,7 @@ TEST_F(Bullet3CollisionDetectionTester, ContactPositions)
   crobot_->checkSelfCollision(req, res2, kstate, *acm_);
   ASSERT_FALSE(res3.collision);
 }
-
+*/
 /*
 TEST_F(Bullet3CollisionDetectionTester, AttachedBodyTester) {
   collision_detection::CollisionRequest req;
@@ -379,7 +379,6 @@ TEST_F(Bullet3CollisionDetectionTester, AttachedBodyTester) {
   cworld_->checkRobotCollision(req, res, *crobot_, kstate, *acm_);
   ASSERT_TRUE(res.collision);
 }
-*/
 
 TEST_F(Bullet3CollisionDetectionTester, DiffSceneTester)
 {
@@ -434,7 +433,6 @@ TEST_F(Bullet3CollisionDetectionTester, DiffSceneTester)
 
 }
 
-/*
 TEST_F(Bullet3CollisionDetectionTester, ConvertObjectToAttached)
 {
   collision_detection::CollisionRequest req;

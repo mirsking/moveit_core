@@ -18,10 +18,15 @@ subject to the following restrictions:
 #include "Bullet3OpenCL/RigidBody/b3GpuNarrowPhase.h"
 #include "Bullet3Collision/NarrowPhaseCollision/shared/b3RigidBodyData.h"
 
+//gpu
 #include "Bullet3OpenCL/RigidBody/kernels/integrateKernel.h"
 #include "Bullet3OpenCL/RigidBody/kernels/updateAabbsKernel.h"
 #define B3_RIGIDBODY_INTEGRATE_PATH "src/Bullet3OpenCL/RigidBody/kernels/integrateKernel.cl"
 #define B3_RIGIDBODY_UPDATEAABB_PATH "src/Bullet3OpenCL/RigidBody/kernels/updateAabbsKernel.cl"
+
+//cpu
+#include "Bullet3Collision/NarrowPhaseCollision/shared/b3UpdateAabbs.h"
+
 
 b3GpuCollisionDetectionManager::b3GpuCollisionDetectionManager(const b3Config& config)
 {
@@ -82,28 +87,62 @@ b3GpuCollisionDetectionManager::~b3GpuCollisionDetectionManager()
 bool b3GpuCollisionDetectionManager::calculateCollision()
 {
     initBroadPhase();
-    m_data->m_broadphase->writeAabbsToGpu();
+    //m_data->m_broadphase->writeAabbsToGpu();
+    b3Error("(%d)\n", m_data->m_broadphase->getAllAabbsGPU().size());
+    m_data->m_broadphase->calculateOverlappingPairsHost(m_data->m_config.m_maxBroadphasePairs);
+    int numPairs = m_data->m_broadphase->getNumOverlap();
+    b3Printf("get %d pairs collision by broadphase calculate CPU\n", m_data->m_broadphase->getNumOverlap());
     m_data->m_broadphase->calculateOverlappingPairs(m_data->m_config.m_maxBroadphasePairs);
+    numPairs = m_data->m_broadphase->getNumOverlap();
+    b3Printf("get %d pairs collision by broadphase calculate GPU\n", m_data->m_broadphase->getNumOverlap());
 
-    b3Printf("get %d pairs collision by broadphase calculate", m_data->m_broadphase->getNumOverlap());
+    if(numPairs)
+    {
+        m_data->m_narrowphase->computeContacts(
+                    m_data->m_broadphase->getOverlappingPairBuffer(),
+                    m_data->m_broadphase->getNumOverlap(),
+                    m_data->m_broadphase->getAabbBufferWS(),
+                    m_data->m_narrowphase->getNumRigidBodies());
 
-    m_data->m_narrowphase->computeContacts(
-                m_data->m_broadphase->getOverlappingPairBuffer(),
-                m_data->m_broadphase->getNumOverlap(),
-                m_data->m_broadphase->getAabbBufferWS(),
-                m_data->m_narrowphase->getNumRigidBodies()); // don't know object num's meaning
-
-
-    b3Printf("get %d contacts by narrowphase calculate", m_data->m_narrowphase->getNumContactsGpu());
-    int res = m_data->m_narrowphase->getNumContactsGpu();
-    if(res > 0)
-        return true;
+        b3Printf("get %d contacts by narrowphase calculate\n", m_data->m_narrowphase->getNumContactsGpu());
+        int res = m_data->m_narrowphase->getNumContactsGpu();
+        if(res > 0)
+            return true;
+        else
+            return false;
+    }
     else
+    {
         return false;
+    }
 }
 
 void b3GpuCollisionDetectionManager::initBroadPhase()
 {
+    int numBodies = m_data->m_narrowphase->getNumRigidBodies();
+    if (!numBodies)
+    {
+        b3Warning("no rigid body in narrowphase");
+        return;
+    }
+
+    if(1)//cpu
+    {
+        m_data->m_broadphase->getAllAabbsCPU().resize(numBodies);
+        m_data->m_narrowphase->readbackAllBodiesToCpu();
+        for (int i=0;i<numBodies;i++)
+        {
+            b3ComputeWorldAabb(  i,
+                                 m_data->m_narrowphase->getBodiesCpu(),
+                                 m_data->m_narrowphase->getCollidablesCpu(),
+                                 m_data->m_narrowphase->getLocalSpaceAabbsCpu(),
+                                 &m_data->m_broadphase->getAllAabbsCPU()[0]);
+        }
+        m_data->m_broadphase->getAllAabbsGPU().copyFromHost(m_data->m_broadphase->getAllAabbsCPU());
+        //m_data->m_broadphaseSap->writeAabbsToGpu();
+    }
+
+    /*
     int num_bodies = m_data->m_narrowphase->getNumRigidBodies();
     const b3RigidBodyData_t* rigidbody = m_data->m_narrowphase->getBodiesCpu();
     const b3SapAabb* aabbs = m_data->m_narrowphase->getLocalSpaceAabbsCpu();
@@ -116,5 +155,6 @@ void b3GpuCollisionDetectionManager::initBroadPhase()
         b3Vector3 aabbMax = b3MakeVector3(aabb.m_max[0], aabb.m_max[1], aabb.m_max[2]);
         m_data->m_broadphase->createProxy(aabbMin, aabbMax, i, 0, 0);
     }
+    */
 }
 

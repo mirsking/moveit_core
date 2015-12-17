@@ -53,7 +53,7 @@ collision_detection::CollisionRobotBULLET3::CollisionRobotBULLET3(const robot_mo
       if (g)
         geoms_[links[i]->getFirstCollisionBodyTransformIndex() + j] = g;
       else
-        logError("Unable to construct collision geometry for link '%s'\n", links[i]->getName().c_str());
+        logError("Unable to construct collision geometry for link '%s'", links[i]->getName().c_str());
     }
 }
 
@@ -130,12 +130,12 @@ void collision_detection::CollisionRobotBULLET3::checkSelfCollision(const Collis
 
 void collision_detection::CollisionRobotBULLET3::checkSelfCollision(const CollisionRequest &req, CollisionResult &res, const robot_state::RobotState &state1, const robot_state::RobotState &state2) const
 {
-  logError("BULLET3 continuous collision checking not yet implemented\n");
+  logError("BULLET3 continuous collision checking not yet implemented");
 }
 
 void collision_detection::CollisionRobotBULLET3::checkSelfCollision(const CollisionRequest &req, CollisionResult &res, const robot_state::RobotState &state1, const robot_state::RobotState &state2, const AllowedCollisionMatrix &acm) const
 {
-  logError("BULLET3 continuous collision checking not yet implemented\n");
+  logError("BULLET3 continuous collision checking not yet implemented");
 }
 
 void collision_detection::CollisionRobotBULLET3::checkSelfCollisionHelper(const CollisionRequest &req, CollisionResult &res, const robot_state::RobotState &state,
@@ -144,7 +144,7 @@ void collision_detection::CollisionRobotBULLET3::checkSelfCollisionHelper(const 
   if (req.distance)
   {
     res.distance = 0.0;
-    logError("distance require in collision detection is not supported yet!\n");
+    logError("distance require in collision detection is not supported yet!");
   }
   BULLET3Objects b3_objs;
   constructBULLET3Object(state, b3_objs);
@@ -166,16 +166,16 @@ void collision_detection::CollisionRobotBULLET3::constructBULLET3Object(const ro
       transform2bullet3(state.getCollisionBodyTransform(geoms_[i]->collision_geometry_data_->ptr.link, geoms_[i]->collision_geometry_data_->shape_index), position, orientation);
 
       //get Aabb
-      b3Aabb aabb = manager_->m_data->m_narrowphase->getLocalSpaceAabb(geoms_[i]->collision_geometry_id_);
+      b3SapAabb aabb = manager_->m_data->m_narrowphase->getLocalSpaceAabb(geoms_[i]->collision_geometry_id_);
 
       b3::CollisionObject collObj =  manager_->m_data->m_narrowphase->registerRigidBody(
         geoms_[i]->collision_geometry_id_,
                   0.0,// mass
                   position,
                   orientation,
-                  aabb.m_min,
-                  aabb.m_max,
-                  false);
+                  &aabb.m_min[0],
+                  &aabb.m_max[0],
+                  true);
       bullet3_objs.collision_objects_.push_back(collObj);
       // the CollisionGeometryData is already stored in the class member geoms_, so we need not copy it
     }

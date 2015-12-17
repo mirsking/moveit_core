@@ -117,6 +117,17 @@ struct CollisionGeometryData
 namespace b3{
 typedef int CollisionGeometry; // For bullet3, this type means shape id in narrowphase
 typedef int CollisionObject;
+
+struct ConvexHullShape
+{
+    float* vertices;
+    int strideInBytes;
+    int numVertices;
+    float scales[3];
+};
+void inline insertVertice(float* vertices, int& index, float x, float y, float z);
+void createBoxConvexHullVerticles(const double* size, ConvexHullShape& ch);
+void createCylinderConvexHullVerticles(const double radius, const double length, ConvexHullShape& ch);
 }
 
 struct BULLET3Geometry

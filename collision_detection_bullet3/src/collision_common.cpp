@@ -215,26 +215,29 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
     case shapes::SPHERE:
       {
         const shapes::Sphere* s = static_cast<const shapes::Sphere*>(shape.get());
-        //cg_g = new bullet3::Sphere(s->radius);
-        //TODO: new bullet3 rigid
-        logError("This shape type (%d: SPHERE) is not supported using BULLET3 yet", (int)shape->type);
+        //logWarn("loading shape type (%d: SPHERE)", (int)shape->type);
+        cg_g = manager->m_data->m_narrowphase->registerSphereShape(s->radius);
       }
       break;
     case shapes::BOX:
       {
         const shapes::Box* s = static_cast<const shapes::Box*>(shape.get());
         const double* size = s->size;
-        //cg_g = new bullet3::Box(size[0], size[1], size[2]);
-        //TODO: new bullet3 rigid
-        logError("This shape type (%d: BOX) is not supported using BULLET3 yet", (int)shape->type);
+        //logWarn("loading shape type (%d: BOX)", (int)shape->type);
+        b3::ConvexHullShape ch;
+        b3::createBoxConvexHullVerticles(size, ch);
+        cg_g = manager->m_data->m_narrowphase->registerConvexHullShape(ch.vertices, ch.strideInBytes, ch.numVertices, &ch.scales[0]);
+        delete ch.vertices;
       }
       break;
     case shapes::CYLINDER:
       {
         const shapes::Cylinder* s = static_cast<const shapes::Cylinder*>(shape.get());
-        //cg_g = new bullet3::Cylinder(s->radius, s->length);
-        //TODO: new bullet3 rigid
-        logError("This shape type (%d: CYLINDER) is not supported using BULLET3 yet", (int)shape->type);
+        //logWarn("loading shape type (%d: CYLINDER)", (int)shape->type);
+        b3::ConvexHullShape ch;
+        b3::createCylinderConvexHullVerticles(s->radius, s->length, ch);
+        cg_g = manager->m_data->m_narrowphase->registerConvexHullShape(ch.vertices, ch.strideInBytes, ch.numVertices, &ch.scales[0]);
+        delete ch.vertices;
       }
       break;
     case shapes::CONE:
@@ -247,7 +250,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
       break;
     case shapes::MESH:
       {
-        logError("loading shape type (%d: MESH)", (int)shape->type);
+        //logWarn("loading shape type (%d: MESH)", (int)shape->type);
         b3AlignedObjectArray<b3Vector3> b3_mesh_vertices;
         b3AlignedObjectArray<int> b3_mesh_indices;
         const shapes::Mesh *mesh = static_cast<const shapes::Mesh*>(shape.get());
@@ -329,7 +332,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
 }
 
 BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
-                                            const robot_model::LinkModel *link, int shape_index,
+                                                    const robot_model::LinkModel *link, int shape_index,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager)
 {
   return createCollisionGeometry<b3Aabb, robot_model::LinkModel>(shape, scale, padding, link, shape_index, manager);
@@ -364,4 +367,57 @@ void cleanCollisionGeometryCache()
 }
 
 
+void b3::createBoxConvexHullVerticles(const double* size, ConvexHullShape& ch)
+{
+    ch.strideInBytes = 3*sizeof(float);
+    ch.numVertices = 8;
+    ch.vertices = new float[ch.numVertices * 3];
+    for(int i=0;i<3;i++)
+        ch.scales[i] = 1.0;
+    double x = size[0]/2, y=size[1]/2, z=size[2]/2;
+    int index = 0;
+    for(int i=-1;i<2;i+=2)
+    {
+        for(int j=-1;j<2;j+=2)
+        {
+            for(int k=-1;k<2;k+=2)
+            {
+                ch.vertices[index++] = x*i;
+                ch.vertices[index++] = y*j;
+                ch.vertices[index++] = z*k;
+            }
+        }
+    }
+}
+
+void inline b3::insertVertice(float* vertices, int& index, float x, float y, float z)
+{
+    vertices[index++] = x;
+    vertices[index++] = y;
+    vertices[index++] = z;
+}
+
+void b3::createCylinderConvexHullVerticles(const double radius, const double length, ConvexHullShape& ch)
+{
+    ch.strideInBytes = 3*sizeof(float);
+    ch.numVertices = 8*3;
+    ch.vertices = new float[ch.numVertices*3];
+    for(int i=0;i<3;i++)
+        ch.scales[i] = 1.0;
+    int index = 0;
+    for(int k=-1;k<2;k++)// z=-length/2, 0, + length/2;
+    {
+        double z = -length/2*k;
+        double x = radius, y = 0;
+        insertVertice(ch.vertices, index, x, y, z);
+        insertVertice(ch.vertices, index, y, x, z);
+        insertVertice(ch.vertices, index, -x, y, z);
+        insertVertice(ch.vertices, index, -y, x, z);
+        x = radius*0.7071067812;
+        insertVertice(ch.vertices, index, x, x, z);
+        insertVertice(ch.vertices, index, -x, x, z);
+        insertVertice(ch.vertices, index, -x, -x, z);
+        insertVertice(ch.vertices, index, x, -x, z);
+    }
+}
 }
