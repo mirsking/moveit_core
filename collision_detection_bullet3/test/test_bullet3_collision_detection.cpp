@@ -125,13 +125,13 @@ protected:
 
   std::string kinect_dae_resource_;
 };
-
 /*
 TEST_F(Bullet3CollisionDetectionTester, InitOK)
 {
   ASSERT_TRUE(urdf_ok_);
   ASSERT_TRUE(srdf_ok_);
 }
+*/
 
 TEST_F(Bullet3CollisionDetectionTester, DefaultNotInCollision)
 {
@@ -144,8 +144,8 @@ TEST_F(Bullet3CollisionDetectionTester, DefaultNotInCollision)
   crobot_->checkSelfCollision(req, res, kstate, *acm_);
   ASSERT_FALSE(res.collision);
 }
-*/
 
+/*
 TEST_F(Bullet3CollisionDetectionTester, LinksInCollision)
 {
   collision_detection::CollisionRequest req;
@@ -187,6 +187,7 @@ TEST_F(Bullet3CollisionDetectionTester, LinksInCollision)
   crobot_->checkSelfCollision(req, res3, kstate, *acm_);
   ASSERT_TRUE(res3.collision);
 }
+*/
 
 /*
 TEST_F(Bullet3CollisionDetectionTester, ContactReporting)

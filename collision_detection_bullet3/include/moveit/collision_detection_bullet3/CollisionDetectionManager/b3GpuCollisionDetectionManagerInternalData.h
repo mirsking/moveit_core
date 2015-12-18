@@ -27,10 +27,10 @@ subject to the following restrictions:
 #include "Bullet3Dynamics/ConstraintSolver/b3TypedConstraint.h"
 #include "Bullet3Collision/NarrowPhaseCollision/b3Config.h"
 
-
-
 #include "Bullet3Collision/BroadPhaseCollision/b3OverlappingPair.h"
 #include "Bullet3OpenCL/RigidBody/b3GpuGenericConstraint.h"
+
+#include "Bullet3Collision/NarrowPhaseCollision/b3CpuNarrowPhase.h"
 
 struct b3GpuCollisionDetectionInternalData
 {
@@ -46,12 +46,13 @@ struct b3GpuCollisionDetectionInternalData
     cl_kernel	m_clearOverlappingPairsKernel;
 
     class b3GpuBroadphaseInterface* 	m_broadphase;
-    class b3GpuNarrowPhase*		m_narrowphase;
-
+    class b3GpuNarrowPhase*		m_narrowphaseGPU;
+    class b3CpuNarrowPhase*		m_narrowphaseCPU;
+/*
     b3OpenCLArray<b3SapAabb>*		m_allAabbsGPU;
     b3AlignedObjectArray<b3SapAabb>	m_allAabbsCPU;
     b3OpenCLArray<b3BroadphasePair>*	m_overlappingPairsGPU;
-
+*/
     b3Config	m_config;
 };
 

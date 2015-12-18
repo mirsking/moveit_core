@@ -26,6 +26,12 @@ subject to the following restrictions:
 
 //cpu
 #include "Bullet3Collision/NarrowPhaseCollision/shared/b3UpdateAabbs.h"
+#include "Bullet3Geometry/b3AabbUtil.h"
+
+#include "Bullet3Common/b3Logging.h"
+#include <stdio.h>
+
+bool gUseCPU = false;
 
 
 b3GpuCollisionDetectionManager::b3GpuCollisionDetectionManager(const b3Config& config)
@@ -34,11 +40,13 @@ b3GpuCollisionDetectionManager::b3GpuCollisionDetectionManager(const b3Config& c
     m_data->m_config = config;
     initCL();
 
-    m_data->m_allAabbsGPU = new b3OpenCLArray<b3SapAabb>(m_data->m_context, m_data->m_queue, config.m_maxConvexBodies);
-    m_data->m_overlappingPairsGPU = new b3OpenCLArray<b3BroadphasePair>(m_data->m_context, m_data->m_queue, config.m_maxBroadphasePairs);
+    //    m_data->m_allAabbsGPU = new b3OpenCLArray<b3SapAabb>(m_data->m_context, m_data->m_queue, config.m_maxConvexBodies);
+    //    m_data->m_overlappingPairsGPU = new b3OpenCLArray<b3BroadphasePair>(m_data->m_context, m_data->m_queue, config.m_maxBroadphasePairs);
 
-    m_data->m_broadphase = new b3GpuSapBroadphase(m_data->m_context, m_data->m_device, m_data->m_queue);
-    m_data->m_narrowphase = new b3GpuNarrowPhase(m_data->m_context, m_data->m_device, m_data->m_queue, m_data->m_config);
+    m_data->m_broadphase = new b3GpuSapBroadphase(m_data->m_context, m_data->m_device, m_data->m_queue, b3GpuSapBroadphase::B3_GPU_SAP_KERNEL_LOCAL_SHARED_MEMORY);
+    //m_data->m_broadphase = new b3GpuGridBroadphase(m_data->m_context, m_data->m_device, m_data->m_queue);
+    m_data->m_narrowphaseGPU = new b3GpuNarrowPhase(m_data->m_context, m_data->m_device, m_data->m_queue, m_data->m_config);
+    m_data->m_narrowphaseCPU = new b3CpuNarrowPhase(m_data->m_config);
 
     cl_int errNum=0;
 
@@ -74,52 +82,70 @@ b3GpuCollisionDetectionManager::~b3GpuCollisionDetectionManager()
     if (m_data->m_clearOverlappingPairsKernel)
         clReleaseKernel(m_data->m_clearOverlappingPairsKernel);
 
-    delete m_data->m_allAabbsGPU;
-    delete m_data->m_overlappingPairsGPU;
+    //delete m_data->m_allAabbsGPU;
+    //delete m_data->m_overlappingPairsGPU;
     delete m_data->m_broadphase;
-    delete m_data->m_narrowphase;
+    delete m_data->m_narrowphaseCPU;
+    delete m_data->m_narrowphaseGPU;
 
     exitCL();
     delete m_data;
 }
 
-
-bool b3GpuCollisionDetectionManager::calculateCollision()
+void myfunc(const char*msg)
 {
+    printf ("fuck:%s\n", msg);
+}
+
+bool b3GpuCollisionDetectionManager::calculateCollision(int& numContacts, const b3Contact4* * contacts)
+{
+    //::b3SetCustomEnterProfileZoneFunc(myfunc);
     initBroadPhase();
-    //m_data->m_broadphase->writeAabbsToGpu();
-    b3Error("(%d)\n", m_data->m_broadphase->getAllAabbsGPU().size());
-    m_data->m_broadphase->calculateOverlappingPairsHost(m_data->m_config.m_maxBroadphasePairs);
-    int numPairs = m_data->m_broadphase->getNumOverlap();
-    b3Printf("get %d pairs collision by broadphase calculate CPU\n", m_data->m_broadphase->getNumOverlap());
-    m_data->m_broadphase->calculateOverlappingPairs(m_data->m_config.m_maxBroadphasePairs);
-    numPairs = m_data->m_broadphase->getNumOverlap();
-    b3Printf("get %d pairs collision by broadphase calculate GPU\n", m_data->m_broadphase->getNumOverlap());
-
-    if(numPairs)
+    int numPairs = 0;
+    if(gUseCPU)
     {
-        m_data->m_narrowphase->computeContacts(
-                    m_data->m_broadphase->getOverlappingPairBuffer(),
-                    m_data->m_broadphase->getNumOverlap(),
-                    m_data->m_broadphase->getAabbBufferWS(),
-                    m_data->m_narrowphase->getNumRigidBodies());
-
-        b3Printf("get %d contacts by narrowphase calculate\n", m_data->m_narrowphase->getNumContactsGpu());
-        int res = m_data->m_narrowphase->getNumContactsGpu();
-        if(res > 0)
-            return true;
-        else
-            return false;
+        m_data->m_broadphase->calculateOverlappingPairsHost(m_data->m_config.m_maxBroadphasePairs);
+        numPairs = m_data->m_broadphase->getNumOverlap();
+        b3Printf("get %d pairs collision by broadphase calculate CPU\n", numPairs);
     }
     else
     {
-        return false;
+        m_data->m_broadphase->getAllAabbsGPU().copyFromHost(m_data->m_broadphase->getAllAabbsCPU());
+        m_data->m_broadphase->writeAabbsToGpu();
+        m_data->m_broadphase->calculateOverlappingPairs(m_data->m_config.m_maxBroadphasePairs);
+        numPairs = m_data->m_broadphase->getNumOverlap();
+        b3Printf("get %d pairs collision by broadphase calculate GPU\n", numPairs);
+        if(numPairs)
+        {
+            m_data->m_narrowphaseGPU->writeAllBodiesToGpu();
+            m_data->m_narrowphaseGPU->computeContacts(
+                        m_data->m_broadphase->getOverlappingPairBuffer(),
+                        numPairs,
+                        //m_data->m_allAabbsGPU->getBufferCL(),
+                        m_data->m_broadphase->getAllAabbsGPU().getBufferCL(),
+                        m_data->m_narrowphaseGPU->getNumRigidBodies());
+
+            numContacts = m_data->m_narrowphaseGPU->getNumContactsGpu();
+            b3Printf("get %d contacts by narrowphase calculate\n", numContacts);
+
+            m_data->m_narrowphaseGPU->readbackAllBodiesToCpu();
+            *contacts = m_data->m_narrowphaseGPU->getContactsCPU();
+            if(numContacts > 0)
+                return true;
+            else
+                return false;
+        }
+        else
+        {
+            return false;
+        }
+
     }
 }
 
 void b3GpuCollisionDetectionManager::initBroadPhase()
 {
-    int numBodies = m_data->m_narrowphase->getNumRigidBodies();
+    int numBodies = m_data->m_narrowphaseGPU->getNumRigidBodies();
     if (!numBodies)
     {
         b3Warning("no rigid body in narrowphase");
@@ -129,22 +155,20 @@ void b3GpuCollisionDetectionManager::initBroadPhase()
     if(1)//cpu
     {
         m_data->m_broadphase->getAllAabbsCPU().resize(numBodies);
-        m_data->m_narrowphase->readbackAllBodiesToCpu();
         for (int i=0;i<numBodies;i++)
         {
             b3ComputeWorldAabb(  i,
-                                 m_data->m_narrowphase->getBodiesCpu(),
-                                 m_data->m_narrowphase->getCollidablesCpu(),
-                                 m_data->m_narrowphase->getLocalSpaceAabbsCpu(),
+                                 m_data->m_narrowphaseGPU->getBodiesCpu(),
+                                 m_data->m_narrowphaseGPU->getCollidablesCpu(),
+                                 m_data->m_narrowphaseGPU->getLocalSpaceAabbsCpu(),
                                  &m_data->m_broadphase->getAllAabbsCPU()[0]);
-            b3SapAabb aabb = m_data->m_broadphase->getAllAabbsCPU()[i];
-           b3Warning("%f %f %f %f\n", aabb.m_min[0], aabb.m_min[1], aabb.m_min[2], aabb.m_min[3]);
-           b3Warning("%f %f %f %f\n", aabb.m_max[0], aabb.m_max[1], aabb.m_max[2], aabb.m_max[3]);
+            //b3SapAabb aabb = m_data->m_broadphase->getAllAabbsCPU()[i];
+            //b3Warning("%f %f %f %f\n", aabb.m_min[0], aabb.m_min[1], aabb.m_min[2], aabb.m_min[3]);
+            //b3Warning("%f %f %f %f\n", aabb.m_max[0], aabb.m_max[1], aabb.m_max[2], aabb.m_max[3]);
         }
-        m_data->m_broadphase->getAllAabbsGPU().copyFromHost(m_data->m_broadphase->getAllAabbsCPU());
-        //m_data->m_broadphaseSap->writeAabbsToGpu();
     }
 
+    //m_data->m_broadphase->getAllAabbsGPU().copyFromHost(m_data->m_broadphase->getAllAabbsCPU());
     /*
     int num_bodies = m_data->m_narrowphase->getNumRigidBodies();
     const b3RigidBodyData_t* rigidbody = m_data->m_narrowphase->getBodiesCpu();
@@ -161,3 +185,77 @@ void b3GpuCollisionDetectionManager::initBroadPhase()
     */
 }
 
+void inline coutb3Vector(b3Vector3& v)
+{
+    b3Error("(%f %f %f)\n", v.getX(), v.getY(), v.getZ());
+}
+
+int b3GpuCollisionDetectionManager::registerPhysicsInstance(float mass, const float* position, const float* orientation, int collidableIndex, int userIndex, bool writeInstanceToGpu)
+{
+
+    b3Vector3 aabbMin=b3MakeVector3(0,0,0),aabbMax=b3MakeVector3(0,0,0);
+
+
+    if (collidableIndex>=0)
+    {
+        b3SapAabb localAabb = m_data->m_narrowphaseGPU->getLocalSpaceAabb(collidableIndex);
+        b3Vector3 localAabbMin=b3MakeVector3(localAabb.m_min[0],localAabb.m_min[1],localAabb.m_min[2]);
+        b3Vector3 localAabbMax=b3MakeVector3(localAabb.m_max[0],localAabb.m_max[1],localAabb.m_max[2]);
+
+        b3Scalar margin = 0.01f;
+        b3Transform t;
+        t.setIdentity();
+        t.setOrigin(b3MakeVector3(position[0],position[1],position[2]));
+        t.setRotation(b3Quaternion(orientation[0],orientation[1],orientation[2],orientation[3]));
+        b3TransformAabb(localAabbMin,localAabbMax, margin,t,aabbMin,aabbMax);
+    } else
+    {
+        b3Error("registerPhysicsInstance using invalid collidableIndex\n");
+        return -1;
+    }
+
+
+    //bool writeToGpu = false;
+    int bodyIndex = m_data->m_narrowphaseGPU->getNumRigidBodies();
+    bodyIndex = m_data->m_narrowphaseGPU->registerRigidBody(collidableIndex,mass,position,orientation,&aabbMin.getX(),&aabbMax.getX(), writeInstanceToGpu);
+
+    if (bodyIndex>=0)
+    {
+        /*
+        if (gUseDbvt)
+        {
+            m_data->m_broadphaseDbvt->createProxy(aabbMin,aabbMax,bodyIndex,0,1,1);
+            b3SapAabb aabb;
+            for (int i=0;i<3;i++)
+            {
+                aabb.m_min[i] = aabbMin[i];
+                aabb.m_max[i] = aabbMax[i];
+                aabb.m_minIndices[3] = bodyIndex;
+            }
+            m_data->m_allAabbsCPU.push_back(aabb);
+            if (writeInstanceToGpu)
+            {
+                m_data->m_allAabbsGPU->copyFromHost(m_data->m_allAabbsCPU);
+            }
+        } else
+        */
+        {
+            if (mass)
+            {
+                m_data->m_broadphase->createProxy(aabbMin,aabbMax,bodyIndex,1,1);//m_dispatcher);
+            } else
+            {
+                m_data->m_broadphase->createLargeProxy(aabbMin,aabbMax,bodyIndex,1,1);//m_dispatcher);
+            }
+        }
+    }
+
+    /*
+    if (mass>0.f)
+        m_numDynamicPhysicsInstances++;
+
+    m_numPhysicsInstances++;
+    */
+
+    return bodyIndex;
+}

@@ -148,10 +148,10 @@ void collision_detection::CollisionRobotBULLET3::checkSelfCollisionHelper(const 
   }
   BULLET3Objects b3_objs;
   constructBULLET3Object(state, b3_objs);
-
-  res.collision = manager_->calculateCollision();
-
-  logError("checkSelfCollisionHelper result: %d\n", res.collision);
+  manager_->calculateCollision(b3_objs.num_contacts_, &(b3_objs.contacts_));
+  b3_objs.convert2CollisionResult(res);
+  for(CollisionResult::ContactMap::iterator it = res.contacts.begin(); it!=res.contacts.end(); it++)
+    logError("get Contacts between %s and %s \n", it->first.first.c_str(), it->first.second.c_str());
 }
 
 
@@ -160,25 +160,24 @@ void collision_detection::CollisionRobotBULLET3::constructBULLET3Object(const ro
   bullet3_objs.collision_objects_.reserve(geoms_.size());
 
   for (std::size_t i = 0 ; i < geoms_.size() ; ++i)
+  {
     if (geoms_[i] && geoms_[i]->collision_geometry_id_ != -1)
     {
       float position[3], orientation[4];
       transform2bullet3(state.getCollisionBodyTransform(geoms_[i]->collision_geometry_data_->ptr.link, geoms_[i]->collision_geometry_data_->shape_index), position, orientation);
 
-      //get Aabb
-      b3SapAabb aabb = manager_->m_data->m_narrowphase->getLocalSpaceAabb(geoms_[i]->collision_geometry_id_);
-
-      b3::CollisionObject collObj =  manager_->m_data->m_narrowphase->registerRigidBody(
-        geoms_[i]->collision_geometry_id_,
-                  0.0,// mass
+      b3::CollisionObject collObj =  manager_->registerPhysicsInstance(
+                  1.0,// mass
                   position,
                   orientation,
-                  &aabb.m_min[0],
-                  &aabb.m_max[0],
-                  true);
+                  geoms_[i]->collision_geometry_id_,
+                  i,
+                  false);
       bullet3_objs.collision_objects_.push_back(collObj);
+      bullet3_objs.collision_geometrys_.push_back(geoms_[i]);
       // the CollisionGeometryData is already stored in the class member geoms_, so we need not copy it
     }
+  }
 /*
   std::vector<const robot_state::AttachedBody*> ab;
   state.getAttachedBodies(ab);

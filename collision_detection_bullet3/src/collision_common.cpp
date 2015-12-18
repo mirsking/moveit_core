@@ -216,7 +216,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
       {
         const shapes::Sphere* s = static_cast<const shapes::Sphere*>(shape.get());
         //logWarn("loading shape type (%d: SPHERE)", (int)shape->type);
-        cg_g = manager->m_data->m_narrowphase->registerSphereShape(s->radius);
+        cg_g = manager->m_data->m_narrowphaseGPU->registerSphereShape(s->radius);
       }
       break;
     case shapes::BOX:
@@ -226,7 +226,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
         //logWarn("loading shape type (%d: BOX)", (int)shape->type);
         b3::ConvexHullShape ch;
         b3::createBoxConvexHullVerticles(size, ch);
-        cg_g = manager->m_data->m_narrowphase->registerConvexHullShape(ch.vertices, ch.strideInBytes, ch.numVertices, &ch.scales[0]);
+        cg_g = manager->m_data->m_narrowphaseGPU->registerConvexHullShape(ch.vertices, ch.strideInBytes, ch.numVertices, &ch.scales[0]);
         delete ch.vertices;
       }
       break;
@@ -236,7 +236,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
         //logWarn("loading shape type (%d: CYLINDER)", (int)shape->type);
         b3::ConvexHullShape ch;
         b3::createCylinderConvexHullVerticles(s->radius, s->length, ch);
-        cg_g = manager->m_data->m_narrowphase->registerConvexHullShape(ch.vertices, ch.strideInBytes, ch.numVertices, &ch.scales[0]);
+        cg_g = manager->m_data->m_narrowphaseGPU->registerConvexHullShape(ch.vertices, ch.strideInBytes, ch.numVertices, &ch.scales[0]);
         delete ch.vertices;
       }
       break;
@@ -265,7 +265,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
                 b3_mesh_indices.push_back(i);
             }
             float scale[] = {1, 1, 1};
-            cg_g = manager->m_data->m_narrowphase->registerConcaveMesh(&b3_mesh_vertices, &b3_mesh_indices, scale);
+            cg_g = manager->m_data->m_narrowphaseGPU->registerConcaveMesh(&b3_mesh_vertices, &b3_mesh_indices, scale);
         }
       }
       break;

@@ -21,6 +21,7 @@ subject to the following restrictions:
 #include "b3GpuCollisionDetectionManagerInternalData.h"
 #include "Bullet3OpenCL/Initialize/b3OpenCLUtils.h"
 #include <boost/shared_ptr.hpp>
+#include "Bullet3Collision/NarrowPhaseCollision/b3Contact4.h"
 
 class b3GpuCollisionDetectionManager
 {
@@ -31,7 +32,8 @@ public:
     b3GpuCollisionDetectionManager(const b3Config& config);
     ~b3GpuCollisionDetectionManager();
 
-    bool calculateCollision();
+    bool calculateCollision(int& numContacts, const b3Contact4 **contacts);
+    int registerPhysicsInstance(float mass, const float* position, const float* orientation, int collidableIndex, int userIndex, bool writeInstanceToGpu);
 
 private:
     void initCL(int preferredDeviceIndex=-1, int preferredPlatformIndex=-1)
