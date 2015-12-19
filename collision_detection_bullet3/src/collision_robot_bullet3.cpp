@@ -149,7 +149,7 @@ void collision_detection::CollisionRobotBULLET3::checkSelfCollisionHelper(const 
   BULLET3Objects b3_objs;
   constructBULLET3Object(state, b3_objs);
   manager_->calculateCollision(b3_objs.num_contacts_, &(b3_objs.contacts_));
-  b3_objs.convert2CollisionResult(res);
+  b3_objs.convert2CollisionResult(acm, res);
   for(CollisionResult::ContactMap::iterator it = res.contacts.begin(); it!=res.contacts.end(); it++)
     logError("get Contacts between %s and %s \n", it->first.first.c_str(), it->first.second.c_str());
 }

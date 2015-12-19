@@ -236,29 +236,34 @@ struct BULLET3Objects
         return true;
     }
 
-    void convert2CollisionResult(CollisionResult& res)
+    void convert2CollisionResult(const AllowedCollisionMatrix *acm, CollisionResult& res)
     {
-        if(!num_contacts_)
+        if(num_contacts_>0)
         {
             res.collision = false;
             return;
         }
         else
         {
-            res.contact_count = num_contacts_;
-            res.collision = true;
-        }
-        for(int i=0; i<num_contacts_; i++)
-        {
-            b3::CollisionObject lhs = contacts_[i].getBodyA();
-            b3::CollisionObject rhs = contacts_[i].getBodyB();
-            //construct contact
-            std::vector<Contact> cts;
-            cts.resize(1);
-            Contact& ct = cts[0];
-            getIDName(lhs, ct.body_name_1);
-            getIDName(rhs, ct.body_name_2);
-            res.contacts[std::make_pair(ct.body_name_1, ct.body_name_2)] = cts;
+            res.contacts.clear();
+            for(int i=0; i<num_contacts_; i++)
+            {
+                b3::CollisionObject lhs = contacts_[i].getBodyA();
+                b3::CollisionObject rhs = contacts_[i].getBodyB();
+                //construct contact
+                std::vector<Contact> cts;
+                cts.resize(1);
+                Contact& ct = cts[0];
+                getIDName(lhs, ct.body_name_1);
+                getIDName(rhs, ct.body_name_2);
+                if(acm->hasEntry(ct.body_name_1, ct.body_name_2))
+                    res.contacts[std::make_pair(ct.body_name_1, ct.body_name_2)] = cts;
+            }
+            res.contact_count = res.contacts.size();
+            if(res.contact_count>0)
+                res.collision = true;
+            else
+                res.collision = false;
         }
     }
 };
