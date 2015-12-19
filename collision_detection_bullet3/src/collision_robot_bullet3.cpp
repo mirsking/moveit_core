@@ -49,7 +49,7 @@ collision_detection::CollisionRobotBULLET3::CollisionRobotBULLET3(const robot_mo
   for (std::size_t i = 0 ; i < links.size() ; ++i)
     for (std::size_t j = 0 ; j < links[i]->getShapes().size() ; ++j)
     {
-      BULLET3GeometryConstPtr g = createCollisionGeometry(links[i]->getShapes()[j], getLinkScale(links[i]->getName()), getLinkPadding(links[i]->getName()), links[i], j, manager_);
+      BULLET3Geometry::ConstPtr g = createCollisionGeometry(links[i]->getShapes()[j], getLinkScale(links[i]->getName()), getLinkPadding(links[i]->getName()), links[i], j, manager_);
       if (g)
         geoms_[links[i]->getFirstCollisionBodyTransformIndex() + j] = g;
       else
@@ -157,24 +157,24 @@ void collision_detection::CollisionRobotBULLET3::checkSelfCollisionHelper(const 
 
 void collision_detection::CollisionRobotBULLET3::constructBULLET3Object(const robot_state::RobotState &state, BULLET3Objects &bullet3_objs) const
 {
-  bullet3_objs.collision_objects_.reserve(geoms_.size());
 
   for (std::size_t i = 0 ; i < geoms_.size() ; ++i)
   {
     if (geoms_[i] && geoms_[i]->collision_geometry_id_ != -1)
     {
       float position[3], orientation[4];
-      transform2bullet3(state.getCollisionBodyTransform(geoms_[i]->collision_geometry_data_->ptr.link, geoms_[i]->collision_geometry_data_->shape_index), position, orientation);
+      b3::transform2bullet3(state.getCollisionBodyTransform(geoms_[i]->collision_geometry_data_->ptr.link, geoms_[i]->collision_geometry_data_->shape_index),
+                        position,
+                        orientation);
 
-      b3::CollisionObject collObj =  manager_->registerPhysicsInstance(
+      b3::CollisionObject coll_obj =  manager_->registerPhysicsInstance(
                   1.0,// mass
                   position,
                   orientation,
                   geoms_[i]->collision_geometry_id_,
                   i,
                   false);
-      bullet3_objs.collision_objects_.push_back(collObj);
-      bullet3_objs.collision_geometrys_.push_back(geoms_[i]);
+      bullet3_objs.object2geometryptr_map_[coll_obj] = geoms_[i];
       // the CollisionGeometryData is already stored in the class member geoms_, so we need not copy it
     }
   }

@@ -19,6 +19,7 @@ subject to the following restrictions:
 #include "Bullet3Collision/NarrowPhaseCollision/shared/b3RigidBodyData.h"
 
 //gpu
+#include "Bullet3OpenCL/ParallelPrimitives/b3LauncherCL.h"
 #include "Bullet3OpenCL/RigidBody/kernels/integrateKernel.h"
 #include "Bullet3OpenCL/RigidBody/kernels/updateAabbsKernel.h"
 #define B3_RIGIDBODY_INTEGRATE_PATH "src/Bullet3OpenCL/RigidBody/kernels/integrateKernel.cl"
@@ -33,7 +34,6 @@ subject to the following restrictions:
 
 bool gUseCPU = false;
 
-
 b3GpuCollisionDetectionManager::b3GpuCollisionDetectionManager(const b3Config& config)
 {
     m_data = new b3GpuCollisionDetectionInternalData;
@@ -44,7 +44,6 @@ b3GpuCollisionDetectionManager::b3GpuCollisionDetectionManager(const b3Config& c
     //    m_data->m_overlappingPairsGPU = new b3OpenCLArray<b3BroadphasePair>(m_data->m_context, m_data->m_queue, config.m_maxBroadphasePairs);
 
     m_data->m_broadphase = new b3GpuSapBroadphase(m_data->m_context, m_data->m_device, m_data->m_queue, b3GpuSapBroadphase::B3_GPU_SAP_KERNEL_LOCAL_SHARED_MEMORY);
-    //m_data->m_broadphase = new b3GpuGridBroadphase(m_data->m_context, m_data->m_device, m_data->m_queue);
     m_data->m_narrowphaseGPU = new b3GpuNarrowPhase(m_data->m_context, m_data->m_device, m_data->m_queue, m_data->m_config);
     m_data->m_narrowphaseCPU = new b3CpuNarrowPhase(m_data->m_config);
 
@@ -110,8 +109,6 @@ bool b3GpuCollisionDetectionManager::calculateCollision(int& numContacts, const 
     }
     else
     {
-        m_data->m_broadphase->getAllAabbsGPU().copyFromHost(m_data->m_broadphase->getAllAabbsCPU());
-        m_data->m_broadphase->writeAabbsToGpu();
         m_data->m_broadphase->calculateOverlappingPairs(m_data->m_config.m_maxBroadphasePairs);
         numPairs = m_data->m_broadphase->getNumOverlap();
         b3Printf("get %d pairs collision by broadphase calculate GPU\n", numPairs);
@@ -121,7 +118,6 @@ bool b3GpuCollisionDetectionManager::calculateCollision(int& numContacts, const 
             m_data->m_narrowphaseGPU->computeContacts(
                         m_data->m_broadphase->getOverlappingPairBuffer(),
                         numPairs,
-                        //m_data->m_allAabbsGPU->getBufferCL(),
                         m_data->m_broadphase->getAllAabbsGPU().getBufferCL(),
                         m_data->m_narrowphaseGPU->getNumRigidBodies());
 
@@ -137,6 +133,7 @@ bool b3GpuCollisionDetectionManager::calculateCollision(int& numContacts, const 
         }
         else
         {
+            numContacts = 0;
             return false;
         }
 
@@ -152,7 +149,8 @@ void b3GpuCollisionDetectionManager::initBroadPhase()
         return;
     }
 
-    if(1)//cpu
+    //if(gUseCPU)//cpu
+    if(1)
     {
         m_data->m_broadphase->getAllAabbsCPU().resize(numBodies);
         for (int i=0;i<numBodies;i++)
@@ -162,27 +160,26 @@ void b3GpuCollisionDetectionManager::initBroadPhase()
                                  m_data->m_narrowphaseGPU->getCollidablesCpu(),
                                  m_data->m_narrowphaseGPU->getLocalSpaceAabbsCpu(),
                                  &m_data->m_broadphase->getAllAabbsCPU()[0]);
-            //b3SapAabb aabb = m_data->m_broadphase->getAllAabbsCPU()[i];
-            //b3Warning("%f %f %f %f\n", aabb.m_min[0], aabb.m_min[1], aabb.m_min[2], aabb.m_min[3]);
-            //b3Warning("%f %f %f %f\n", aabb.m_max[0], aabb.m_max[1], aabb.m_max[2], aabb.m_max[3]);
         }
+        m_data->m_broadphase->writeAabbsToGpu();
     }
-
-    //m_data->m_broadphase->getAllAabbsGPU().copyFromHost(m_data->m_broadphase->getAllAabbsCPU());
-    /*
-    int num_bodies = m_data->m_narrowphase->getNumRigidBodies();
-    const b3RigidBodyData_t* rigidbody = m_data->m_narrowphase->getBodiesCpu();
-    const b3SapAabb* aabbs = m_data->m_narrowphase->getLocalSpaceAabbsCpu();
-    for(int i=0;i<num_bodies; i++)
+    else// Use GPU to calculate World Aabb
     {
-        // use create or createLarge ?
-        const b3RigidBodyData_t* rb = &rigidbody[i];
-        const b3SapAabb aabb = aabbs[rb->m_collidableIdx];
-        b3Vector3 aabbMin = b3MakeVector3(aabb.m_min[0], aabb.m_min[1], aabb.m_min[2]);
-        b3Vector3 aabbMax = b3MakeVector3(aabb.m_max[0], aabb.m_max[1], aabb.m_max[2]);
-        m_data->m_broadphase->createProxy(aabbMin, aabbMax, i, 0, 0);
+        //__kernel void initializeGpuAabbsFull(  const int numNodes, __global Body* gBodies,__global Collidable* collidables, __global b3AABBCL* plocalShapeAABB, __global b3AABBCL* pAABB)
+        b3LauncherCL launcher(m_data->m_queue,m_data->m_updateAabbsKernel,"m_updateAabbsKernel");
+        launcher.setConst(numBodies);
+        cl_mem bodies = m_data->m_narrowphaseGPU->getBodiesGpu();
+        launcher.setBuffer(bodies);
+        cl_mem collidables = m_data->m_narrowphaseGPU->getCollidablesGpu();
+        launcher.setBuffer(collidables);
+        cl_mem localAabbs = m_data->m_narrowphaseGPU->getAabbLocalSpaceBufferGpu();
+        launcher.setBuffer(localAabbs);
+
+        cl_mem worldAabbs = worldAabbs = m_data->m_broadphase->getAabbBufferWS();
+        launcher.setBuffer(worldAabbs);
+        launcher.launch1D(numBodies);
+        //m_data->m_broadphase->writeAabbsToGpu();
     }
-    */
 }
 
 void inline coutb3Vector(b3Vector3& v)

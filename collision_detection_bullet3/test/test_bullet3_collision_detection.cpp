@@ -145,7 +145,6 @@ TEST_F(Bullet3CollisionDetectionTester, DefaultNotInCollision)
   ASSERT_FALSE(res.collision);
 }
 
-/*
 TEST_F(Bullet3CollisionDetectionTester, LinksInCollision)
 {
   collision_detection::CollisionRequest req;
@@ -187,7 +186,6 @@ TEST_F(Bullet3CollisionDetectionTester, LinksInCollision)
   crobot_->checkSelfCollision(req, res3, kstate, *acm_);
   ASSERT_TRUE(res3.collision);
 }
-*/
 
 /*
 TEST_F(Bullet3CollisionDetectionTester, ContactReporting)

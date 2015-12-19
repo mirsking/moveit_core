@@ -39,13 +39,48 @@
 
 #include <moveit/collision_detection/world.h>
 #include <moveit/collision_detection/collision_world.h>
-#include <set>
 #include <moveit/collision_detection_bullet3/CollisionDetectionManager/b3GpuCollisionDetectionManager.h>
+#include <set>
 #include <algorithm>
+#include <map>
+
+namespace b3{
+typedef int CollisionGeometry; // For bullet3, this type means shape id in narrowphase
+typedef int CollisionObject;
+
+struct ConvexHullShape
+{
+    float* vertices;
+    int strideInBytes;
+    int numVertices;
+    float scales[3];
+};
+void inline insertVertice(float* vertices, int& index, float x, float y, float z);
+void createBoxConvexHullVerticles(const double* size, ConvexHullShape& ch);
+void createCylinderConvexHullVerticles(const double radius, const double length, ConvexHullShape& ch);
+
+inline void transform2bullet3(const Eigen::Affine3d &b, float* position, float* orientation)
+{
+    Eigen::Quaterniond q(b.rotation());
+    position[0] = b.translation().x();
+    position[1] = b.translation().y();
+    position[2] = b.translation().z();
+    orientation[0] = q.x();
+    orientation[1] = q.y();
+    orientation[2] = q.z();
+    orientation[3] = q.w();
+}
+
+}
+
 
 namespace collision_detection
 {
-
+/**
+ * @brief The CollisionGeometryData struct.
+ * Store the a pointer to robot link or attached body or world object.
+ * Also has an shape_index to get the corresponding shape of bullet3
+ */
 struct CollisionGeometryData
 {
     CollisionGeometryData(const robot_model::LinkModel *link, int index)
@@ -115,22 +150,6 @@ struct CollisionGeometryData
 };
 
 
-namespace b3{
-typedef int CollisionGeometry; // For bullet3, this type means shape id in narrowphase
-typedef int CollisionObject;
-
-struct ConvexHullShape
-{
-    float* vertices;
-    int strideInBytes;
-    int numVertices;
-    float scales[3];
-};
-void inline insertVertice(float* vertices, int& index, float x, float y, float z);
-void createBoxConvexHullVerticles(const double* size, ConvexHullShape& ch);
-void createCylinderConvexHullVerticles(const double radius, const double length, ConvexHullShape& ch);
-}
-
 struct BULLET3Geometry
 {
     BULLET3Geometry()
@@ -163,52 +182,55 @@ struct BULLET3Geometry
 
     b3::CollisionGeometry collision_geometry_id_; // bullet3 shape index
     boost::shared_ptr<CollisionGeometryData>  collision_geometry_data_;
+
+    typedef boost::shared_ptr<BULLET3Geometry> Ptr;
+    typedef boost::shared_ptr<const BULLET3Geometry> ConstPtr;
+
 };
 
-typedef boost::shared_ptr<BULLET3Geometry> BULLET3GeometryPtr;
-typedef boost::shared_ptr<const BULLET3Geometry> BULLET3GeometryConstPtr;
-
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
                                                 const robot_model::LinkModel *link,
                                                 int shape_index,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager);
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
                                                 const robot_state::AttachedBody *ab,
                                                 int shape_index,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager);
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
                                                 const World::Object *obj,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager);
 
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
                                                 const robot_model::LinkModel *link, int shape_index,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager);
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
                                                 const robot_state::AttachedBody *ab, int shape_index,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager);
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
                                                 const World::Object *obj,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager);
 
 struct BULLET3Objects
 {
-    //void clear();
-    std::vector<b3::CollisionObject> collision_objects_;
-    std::vector<BULLET3GeometryConstPtr> collision_geometrys_;
+    typedef std::map<b3::CollisionObject, BULLET3Geometry::ConstPtr> Object2GeometryMap_t;
+    Object2GeometryMap_t object2geometryptr_map_;
     int num_contacts_;
     const b3Contact4*  contacts_;
 
+    void clear()
+    {
+        object2geometryptr_map_.clear();
+        num_contacts_ = 0;
+        contacts_ = NULL;
+    }
+
     bool getIDName(b3::CollisionObject id, std::string& name)
     {
-        std::vector<b3::CollisionObject>::iterator iter = std::find(collision_objects_.begin(), collision_objects_.end(), id);
-        if(iter==collision_objects_.end())
-        {
-            logError("Failed to find id: %d ", id);
+        Object2GeometryMap_t::iterator   iter = object2geometryptr_map_.find(id);
+        if(iter==object2geometryptr_map_.end())
             return false;
-        }
 
-        int index = iter - collision_objects_.begin();
-        const CollisionGeometryData *cd = collision_geometrys_[index]->collision_geometry_data_.get();
+        const CollisionGeometryData *cd = iter->second->collision_geometry_data_.get();
         const robot_model::LinkModel *link = cd->type == BodyTypes::ROBOT_LINK ? cd->ptr.link : (cd->type == BodyTypes::ROBOT_ATTACHED ? cd->ptr.ab->getAttachedLink() : NULL);
         name = link->getName();
         return true;
@@ -240,18 +262,6 @@ struct BULLET3Objects
         }
     }
 };
-
-inline void transform2bullet3(const Eigen::Affine3d &b, float* position, float* orientation)
-{
-    Eigen::Quaterniond q(b.rotation());
-    position[0] = b.translation().x();
-    position[1] = b.translation().y();
-    position[2] = b.translation().z();
-    orientation[0] = q.x();
-    orientation[1] = q.y();
-    orientation[2] = q.z();
-    orientation[3] = q.w();
-}
 
 }
 

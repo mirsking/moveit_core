@@ -54,9 +54,9 @@ struct BULLET3ShapeCache
     if (clean_count_ > MAX_CLEAN_COUNT || force)
     {
       clean_count_ = 0;
-      for (std::map<boost::weak_ptr<const shapes::Shape>, BULLET3GeometryConstPtr>::iterator it = map_.begin() ; it != map_.end() ; )
+      for (std::map<boost::weak_ptr<const shapes::Shape>, BULLET3Geometry::ConstPtr>::iterator it = map_.begin() ; it != map_.end() ; )
       {
-        std::map<boost::weak_ptr<const shapes::Shape>, BULLET3GeometryConstPtr>::iterator nit = it; ++nit;
+        std::map<boost::weak_ptr<const shapes::Shape>, BULLET3Geometry::ConstPtr>::iterator nit = it; ++nit;
         if (it->first.expired())
           map_.erase(it);
         it = nit;
@@ -66,7 +66,7 @@ struct BULLET3ShapeCache
   }
 
   static const unsigned int MAX_CLEAN_COUNT = 100; // every this many uses of the cache, a cleaning operation is executed (this is only removal of expired entries)
-  std::map<boost::weak_ptr<const shapes::Shape>, BULLET3GeometryConstPtr> map_;
+  std::map<boost::weak_ptr<const shapes::Shape>, BULLET3Geometry::ConstPtr> map_;
   unsigned int clean_count_;
   boost::mutex lock_;
 };
@@ -92,8 +92,23 @@ struct IfSameType<T, T>
   enum { value = 1 };
 };
 
+void cleanCollisionGeometryCache()
+{
+  BULLET3ShapeCache &cache1 = GetShapeCache<b3Aabb, World::Object>();
+  {
+    boost::mutex::scoped_lock slock(cache1.lock_);
+    cache1.bumpUseCount(true);
+  }
+  BULLET3ShapeCache &cache2 = GetShapeCache<b3Aabb, robot_state::AttachedBody>();
+  {
+    boost::mutex::scoped_lock slock(cache2.lock_);
+    cache2.bumpUseCount(true);
+  }
+}
+
+
 template<typename BV, typename T>
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, const T *data, int shape_index,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, const T *data, int shape_index,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager)
 {
   BULLET3ShapeCache &cache = GetShapeCache<BV, T>();
@@ -101,7 +116,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
   boost::weak_ptr<const shapes::Shape> wptr(shape);
   {
     boost::mutex::scoped_lock slock(cache.lock_);
-    std::map<boost::weak_ptr<const shapes::Shape>, BULLET3GeometryConstPtr>::const_iterator cache_it = cache.map_.find(wptr);
+    std::map<boost::weak_ptr<const shapes::Shape>, BULLET3Geometry::ConstPtr>::const_iterator cache_it = cache.map_.find(wptr);
     if (cache_it != cache.map_.end())
     {
       if (cache_it->second->collision_geometry_data_->ptr.raw == (void*)data)
@@ -129,13 +144,13 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
 
     // attached bodies could be just moved from the environment.
     othercache.lock_.lock(); // lock manually to avoid having 2 simultaneous locks active (avoids possible deadlock)
-    std::map<boost::weak_ptr<const shapes::Shape>, BULLET3GeometryConstPtr>::iterator cache_it = othercache.map_.find(wptr);
+    std::map<boost::weak_ptr<const shapes::Shape>, BULLET3Geometry::ConstPtr>::iterator cache_it = othercache.map_.find(wptr);
     if (cache_it != othercache.map_.end())
     {
       if (cache_it->second.unique())
       {
         // remove from old cache
-        BULLET3GeometryConstPtr obj_cache = cache_it->second;
+        BULLET3Geometry::ConstPtr obj_cache = cache_it->second;
         othercache.map_.erase(cache_it);
         othercache.lock_.unlock();
 
@@ -164,13 +179,13 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
 
       // attached bodies could be just moved from the environment.
       othercache.lock_.lock(); // lock manually to avoid having 2 simultaneous locks active (avoids possible deadlock)
-      std::map<boost::weak_ptr<const shapes::Shape>, BULLET3GeometryConstPtr>::iterator cache_it = othercache.map_.find(wptr);
+      std::map<boost::weak_ptr<const shapes::Shape>, BULLET3Geometry::ConstPtr>::iterator cache_it = othercache.map_.find(wptr);
       if (cache_it != othercache.map_.end())
       {
         if (cache_it->second.unique())
         {
           // remove from old cache
-          BULLET3GeometryConstPtr obj_cache = cache_it->second;
+          BULLET3Geometry::ConstPtr obj_cache = cache_it->second;
           othercache.map_.erase(cache_it);
           othercache.lock_.unlock();
 
@@ -284,25 +299,25 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
   }
   if (cg_g!=-1)
   {
-    BULLET3GeometryConstPtr res(new BULLET3Geometry(cg_g, data, shape_index));
+    BULLET3Geometry::ConstPtr res(new BULLET3Geometry(cg_g, data, shape_index));
     boost::mutex::scoped_lock slock(cache.lock_);
     cache.map_[wptr] = res;
     cache.bumpUseCount();
     return res;
   }
-  return BULLET3GeometryConstPtr();
+  return BULLET3Geometry::ConstPtr();
 }
 
 
 /////////////////////////////////////////////////////
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
                                             const robot_model::LinkModel *link,
                                             int shape_index,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager)
 {
   return createCollisionGeometry<b3Aabb, robot_model::LinkModel>(shape, link, shape_index, manager);//b3Aabb is just a placeholder
 }
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
                                             const robot_state::AttachedBody *ab,
                                             int shape_index,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager)
@@ -310,7 +325,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
   return createCollisionGeometry<b3Aabb, robot_state::AttachedBody>(shape, ab, shape_index, manager);
 }
 
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape,
                                             const World::Object *obj,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager)
 {
@@ -318,7 +333,7 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
 }
 
 template<typename BV, typename T>
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding, const T *data, int shape_index,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding, const T *data, int shape_index,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager)
 {
   if (std::fabs(scale - 1.0) <= std::numeric_limits<double>::epsilon() && std::fabs(padding) <= std::numeric_limits<double>::epsilon())
@@ -331,43 +346,31 @@ BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &sha
   }
 }
 
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
                                                     const robot_model::LinkModel *link, int shape_index,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager)
 {
   return createCollisionGeometry<b3Aabb, robot_model::LinkModel>(shape, scale, padding, link, shape_index, manager);
 }
 
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
                                             const robot_state::AttachedBody *ab, int shape_index,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager)
 {
   return createCollisionGeometry<b3Aabb, robot_state::AttachedBody>(shape, scale, padding, ab, shape_index, manager);
 }
 
-BULLET3GeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
+BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &shape, double scale, double padding,
                                             const World::Object *obj,
                                                 b3GpuCollisionDetectionManager::ConstPtr manager)
 {
   return createCollisionGeometry<b3Aabb, World::Object>(shape, scale, padding, obj, 0, manager);
 }
-
-void cleanCollisionGeometryCache()
-{
-  BULLET3ShapeCache &cache1 = GetShapeCache<b3Aabb, World::Object>();
-  {
-    boost::mutex::scoped_lock slock(cache1.lock_);
-    cache1.bumpUseCount(true);
-  }
-  BULLET3ShapeCache &cache2 = GetShapeCache<b3Aabb, robot_state::AttachedBody>();
-  {
-    boost::mutex::scoped_lock slock(cache2.lock_);
-    cache2.bumpUseCount(true);
-  }
 }
 
+namespace b3 {
 
-void b3::createBoxConvexHullVerticles(const double* size, ConvexHullShape& ch)
+void createBoxConvexHullVerticles(const double* size, ConvexHullShape& ch)
 {
     ch.strideInBytes = 3*sizeof(float);
     ch.numVertices = 8;
@@ -390,14 +393,14 @@ void b3::createBoxConvexHullVerticles(const double* size, ConvexHullShape& ch)
     }
 }
 
-void inline b3::insertVertice(float* vertices, int& index, float x, float y, float z)
+void inline insertVertice(float* vertices, int& index, float x, float y, float z)
 {
     vertices[index++] = x;
     vertices[index++] = y;
     vertices[index++] = z;
 }
 
-void b3::createCylinderConvexHullVerticles(const double radius, const double length, ConvexHullShape& ch)
+void createCylinderConvexHullVerticles(const double radius, const double length, ConvexHullShape& ch)
 {
     ch.strideInBytes = 3*sizeof(float);
     ch.numVertices = 8*3;
