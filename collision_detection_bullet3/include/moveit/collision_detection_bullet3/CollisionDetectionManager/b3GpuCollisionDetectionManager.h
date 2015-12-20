@@ -32,8 +32,10 @@ public:
     b3GpuCollisionDetectionManager(const b3Config& config);
     ~b3GpuCollisionDetectionManager();
 
-    bool calculateCollision(int& numContacts, const b3Contact4 **contacts);
+    bool calculateCollision(int& numContacts, const b3Contact4 **contacts, bool getVerboseResults);
     int registerPhysicsInstance(float mass, const float* position, const float* orientation, int collidableIndex, int userIndex, bool writeInstanceToGpu);
+
+    void updateObjectTransform(float *position, float *orientation , int bodyIndex);
 
 private:
     void initCL(int preferredDeviceIndex=-1, int preferredPlatformIndex=-1)

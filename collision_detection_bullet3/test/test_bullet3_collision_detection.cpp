@@ -132,7 +132,6 @@ TEST_F(Bullet3CollisionDetectionTester, InitOK)
   ASSERT_TRUE(srdf_ok_);
 }
 */
-
 TEST_F(Bullet3CollisionDetectionTester, DefaultNotInCollision)
 {
   robot_state::RobotState kstate(kmodel_);
@@ -140,6 +139,7 @@ TEST_F(Bullet3CollisionDetectionTester, DefaultNotInCollision)
   kstate.update();
 
   collision_detection::CollisionRequest req;
+  req.verbose = true;
   collision_detection::CollisionResult res;
   crobot_->checkSelfCollision(req, res, kstate, *acm_);
   ASSERT_FALSE(res.collision);
@@ -151,6 +151,7 @@ TEST_F(Bullet3CollisionDetectionTester, LinksInCollision)
   collision_detection::CollisionResult res1;
   collision_detection::CollisionResult res2;
   collision_detection::CollisionResult res3;
+  //req.verbose = true;
   //req.contacts = true;
   //req.max_contacts = 100;
 
@@ -183,14 +184,14 @@ TEST_F(Bullet3CollisionDetectionTester, LinksInCollision)
   kstate.update();
 
   acm_->setEntry("r_gripper_palm_link", "l_gripper_palm_link", false);
-  crobot_->checkSelfCollision(req, res3, kstate, *acm_);
-  ASSERT_TRUE(res3.collision);
+  //crobot_->checkSelfCollision(req, res3, kstate, *acm_);
+  //ASSERT_TRUE(res3.collision);
 }
 
-/*
 TEST_F(Bullet3CollisionDetectionTester, ContactReporting)
 {
   collision_detection::CollisionRequest req;
+  req.verbose = true;
   req.contacts = true;
   req.max_contacts = 1;
 
@@ -242,6 +243,7 @@ TEST_F(Bullet3CollisionDetectionTester, ContactReporting)
   EXPECT_LE(res.contact_count, 10);
 }
 
+/*
 TEST_F(Bullet3CollisionDetectionTester, ContactPositions)
 {
   collision_detection::CollisionRequest req;

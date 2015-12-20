@@ -96,6 +96,8 @@ namespace collision_detection
     void constructBULLET3Object(const robot_state::RobotState &state, BULLET3Objects &bullet3_objs) const;
     std::vector<BULLET3Geometry::ConstPtr> geoms_;
 
+    BULLET3Objects::Ptr b3_objs_ptr_;
+
     b3GpuCollisionDetectionManager::Ptr manager_;
   };
 

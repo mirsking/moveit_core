@@ -83,6 +83,8 @@ namespace collision_detection
  */
 struct CollisionGeometryData
 {
+    typedef boost::shared_ptr<CollisionGeometryData> Ptr;
+    typedef boost::shared_ptr<const CollisionGeometryData> ConstPtr;
     CollisionGeometryData(const robot_model::LinkModel *link, int index)
         : type(BodyTypes::ROBOT_LINK)
         , shape_index(index)
@@ -181,7 +183,7 @@ struct BULLET3Geometry
     }
 
     b3::CollisionGeometry collision_geometry_id_; // bullet3 shape index
-    boost::shared_ptr<CollisionGeometryData>  collision_geometry_data_;
+    CollisionGeometryData::Ptr  collision_geometry_data_;
 
     typedef boost::shared_ptr<BULLET3Geometry> Ptr;
     typedef boost::shared_ptr<const BULLET3Geometry> ConstPtr;
@@ -212,8 +214,13 @@ BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &s
 
 struct BULLET3Objects
 {
+    typedef boost::shared_ptr<BULLET3Objects> Ptr;
+    typedef boost::shared_ptr<const BULLET3Objects> ConstPtr;
+
     typedef std::map<b3::CollisionObject, BULLET3Geometry::ConstPtr> Object2GeometryMap_t;
+    typedef std::map<BULLET3Geometry::ConstPtr, b3::CollisionObject> Geometry2ObjectMap_t;
     Object2GeometryMap_t object2geometryptr_map_;
+    Geometry2ObjectMap_t geometryptr2object_map_;
     int num_contacts_;
     const b3Contact4*  contacts_;
 
@@ -224,48 +231,19 @@ struct BULLET3Objects
         contacts_ = NULL;
     }
 
-    bool getIDName(b3::CollisionObject id, std::string& name)
+    CollisionGeometryData::ConstPtr getGeometry(b3::CollisionObject id)
     {
         Object2GeometryMap_t::iterator   iter = object2geometryptr_map_.find(id);
         if(iter==object2geometryptr_map_.end())
-            return false;
+        {
+            logError("No Geometry Found for ID %d with map size %d!", id, object2geometryptr_map_.size());
+            return CollisionGeometryData::ConstPtr();
+        }
 
-        const CollisionGeometryData *cd = iter->second->collision_geometry_data_.get();
-        const robot_model::LinkModel *link = cd->type == BodyTypes::ROBOT_LINK ? cd->ptr.link : (cd->type == BodyTypes::ROBOT_ATTACHED ? cd->ptr.ab->getAttachedLink() : NULL);
-        name = link->getName();
-        return true;
+        return iter->second->collision_geometry_data_;
     }
 
-    void convert2CollisionResult(const AllowedCollisionMatrix *acm, CollisionResult& res)
-    {
-        if(num_contacts_>0)
-        {
-            res.collision = false;
-            return;
-        }
-        else
-        {
-            res.contacts.clear();
-            for(int i=0; i<num_contacts_; i++)
-            {
-                b3::CollisionObject lhs = contacts_[i].getBodyA();
-                b3::CollisionObject rhs = contacts_[i].getBodyB();
-                //construct contact
-                std::vector<Contact> cts;
-                cts.resize(1);
-                Contact& ct = cts[0];
-                getIDName(lhs, ct.body_name_1);
-                getIDName(rhs, ct.body_name_2);
-                if(acm->hasEntry(ct.body_name_1, ct.body_name_2))
-                    res.contacts[std::make_pair(ct.body_name_1, ct.body_name_2)] = cts;
-            }
-            res.contact_count = res.contacts.size();
-            if(res.contact_count>0)
-                res.collision = true;
-            else
-                res.collision = false;
-        }
-    }
+    void convert2CollisionResult(const AllowedCollisionMatrix *acm, const CollisionRequest& req, CollisionResult& res);
 };
 
 }

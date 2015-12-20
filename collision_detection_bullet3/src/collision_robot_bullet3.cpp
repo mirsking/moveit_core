@@ -42,6 +42,7 @@ collision_detection::CollisionRobotBULLET3::CollisionRobotBULLET3(const robot_mo
 {
   b3Config config;
   manager_ = b3GpuCollisionDetectionManager::Ptr(new b3GpuCollisionDetectionManager(config));
+  b3_objs_ptr_ = BULLET3Objects::Ptr(new BULLET3Objects);
 
   const std::vector<const robot_model::LinkModel*>& links = robot_model_->getLinkModelsWithCollisionGeometry();
   geoms_.resize(robot_model_->getLinkGeometryCount());
@@ -59,6 +60,7 @@ collision_detection::CollisionRobotBULLET3::CollisionRobotBULLET3(const robot_mo
 
 collision_detection::CollisionRobotBULLET3::CollisionRobotBULLET3(const CollisionRobotBULLET3 &other) : CollisionRobot(other)
 {
+  logError("RobotBullet3's Copy Construct is Called !\n");
   geoms_ = other.geoms_;
   manager_ = other.manager_;
 }
@@ -146,18 +148,19 @@ void collision_detection::CollisionRobotBULLET3::checkSelfCollisionHelper(const 
     res.distance = 0.0;
     logError("distance require in collision detection is not supported yet!");
   }
-  BULLET3Objects b3_objs;
-  constructBULLET3Object(state, b3_objs);
-  manager_->calculateCollision(b3_objs.num_contacts_, &(b3_objs.contacts_));
-  b3_objs.convert2CollisionResult(acm, res);
+  constructBULLET3Object(state, *b3_objs_ptr_);
+  manager_->calculateCollision(b3_objs_ptr_->num_contacts_, &(b3_objs_ptr_->contacts_), req.contacts);
+  b3_objs_ptr_->convert2CollisionResult(acm, req, res);
+  if(0)
+  {
   for(CollisionResult::ContactMap::iterator it = res.contacts.begin(); it!=res.contacts.end(); it++)
     logError("get Contacts between %s and %s \n", it->first.first.c_str(), it->first.second.c_str());
+  }
 }
 
 
 void collision_detection::CollisionRobotBULLET3::constructBULLET3Object(const robot_state::RobotState &state, BULLET3Objects &bullet3_objs) const
 {
-
   for (std::size_t i = 0 ; i < geoms_.size() ; ++i)
   {
     if (geoms_[i] && geoms_[i]->collision_geometry_id_ != -1)
@@ -166,16 +169,26 @@ void collision_detection::CollisionRobotBULLET3::constructBULLET3Object(const ro
       b3::transform2bullet3(state.getCollisionBodyTransform(geoms_[i]->collision_geometry_data_->ptr.link, geoms_[i]->collision_geometry_data_->shape_index),
                         position,
                         orientation);
-
-      b3::CollisionObject coll_obj =  manager_->registerPhysicsInstance(
-                  1.0,// mass
-                  position,
-                  orientation,
-                  geoms_[i]->collision_geometry_id_,
-                  i,
-                  false);
-      bullet3_objs.object2geometryptr_map_[coll_obj] = geoms_[i];
-      // the CollisionGeometryData is already stored in the class member geoms_, so we need not copy it
+      BULLET3Objects::Geometry2ObjectMap_t::iterator iter = bullet3_objs.geometryptr2object_map_.find(geoms_[i]);
+      if(iter==bullet3_objs.geometryptr2object_map_.end())
+      {
+          b3::CollisionObject coll_obj =  manager_->registerPhysicsInstance(
+                      1.0,// mass
+                      position,
+                      orientation,
+                      geoms_[i]->collision_geometry_id_,
+                      i,
+                      false);
+          //logError("Registering object (%d)", coll_obj);
+          bullet3_objs.object2geometryptr_map_[coll_obj] = geoms_[i];
+          bullet3_objs.geometryptr2object_map_[geoms_[i]] = coll_obj;
+          // the CollisionGeometryData is already stored in the class member geoms_, so we need not copy it
+      }
+      else
+      {
+           b3::CollisionObject coll_obj = iter->second;
+           manager_->updateObjectTransform(position, orientation, coll_obj);
+      }
     }
   }
 /*

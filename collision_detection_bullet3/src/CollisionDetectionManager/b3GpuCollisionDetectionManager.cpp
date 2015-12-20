@@ -15,6 +15,8 @@ subject to the following restrictions:
 
 #include <moveit/collision_detection_bullet3/CollisionDetectionManager/b3GpuCollisionDetectionManager.h>
 #include "Bullet3OpenCL/BroadphaseCollision/b3GpuSapBroadphase.h"
+#include "Bullet3OpenCL/BroadphaseCollision/b3GpuGridBroadphase.h"
+#include "Bullet3OpenCL/BroadphaseCollision/b3GpuParallelLinearBvhBroadphase.h"
 #include "Bullet3OpenCL/RigidBody/b3GpuNarrowPhase.h"
 #include "Bullet3Collision/NarrowPhaseCollision/shared/b3RigidBodyData.h"
 
@@ -43,7 +45,8 @@ b3GpuCollisionDetectionManager::b3GpuCollisionDetectionManager(const b3Config& c
     //    m_data->m_allAabbsGPU = new b3OpenCLArray<b3SapAabb>(m_data->m_context, m_data->m_queue, config.m_maxConvexBodies);
     //    m_data->m_overlappingPairsGPU = new b3OpenCLArray<b3BroadphasePair>(m_data->m_context, m_data->m_queue, config.m_maxBroadphasePairs);
 
-    m_data->m_broadphase = new b3GpuSapBroadphase(m_data->m_context, m_data->m_device, m_data->m_queue, b3GpuSapBroadphase::B3_GPU_SAP_KERNEL_LOCAL_SHARED_MEMORY);
+    //m_data->m_broadphase = new b3GpuSapBroadphase(m_data->m_context, m_data->m_device, m_data->m_queue, b3GpuSapBroadphase::B3_GPU_SAP_KERNEL_LOCAL_SHARED_MEMORY);
+    m_data->m_broadphase = new b3GpuGridBroadphase(m_data->m_context, m_data->m_device, m_data->m_queue);
     m_data->m_narrowphaseGPU = new b3GpuNarrowPhase(m_data->m_context, m_data->m_device, m_data->m_queue, m_data->m_config);
     m_data->m_narrowphaseCPU = new b3CpuNarrowPhase(m_data->m_config);
 
@@ -96,7 +99,7 @@ void myfunc(const char*msg)
     printf ("fuck:%s\n", msg);
 }
 
-bool b3GpuCollisionDetectionManager::calculateCollision(int& numContacts, const b3Contact4* * contacts)
+bool b3GpuCollisionDetectionManager::calculateCollision(int& numContacts, const b3Contact4* * contacts, bool getVerboseResults)
 {
     //::b3SetCustomEnterProfileZoneFunc(myfunc);
     initBroadPhase();
@@ -124,8 +127,11 @@ bool b3GpuCollisionDetectionManager::calculateCollision(int& numContacts, const 
             numContacts = m_data->m_narrowphaseGPU->getNumContactsGpu();
             b3Printf("get %d contacts by narrowphase calculate\n", numContacts);
 
-            m_data->m_narrowphaseGPU->readbackAllBodiesToCpu();
-            *contacts = m_data->m_narrowphaseGPU->getContactsCPU();
+            //if(getVerboseResults)
+            {
+                m_data->m_narrowphaseGPU->readbackAllBodiesToCpu();
+                *contacts = m_data->m_narrowphaseGPU->getContactsCPU();
+            }
             if(numContacts > 0)
                 return true;
             else
@@ -142,6 +148,7 @@ bool b3GpuCollisionDetectionManager::calculateCollision(int& numContacts, const 
 
 void b3GpuCollisionDetectionManager::initBroadPhase()
 {
+    m_data->m_narrowphaseGPU->writeAllBodiesToGpu();
     int numBodies = m_data->m_narrowphaseGPU->getNumRigidBodies();
     if (!numBodies)
     {
@@ -255,4 +262,9 @@ int b3GpuCollisionDetectionManager::registerPhysicsInstance(float mass, const fl
     */
 
     return bodyIndex;
+}
+
+void b3GpuCollisionDetectionManager::updateObjectTransform(float *position, float *orientation, int bodyIndex)
+{
+     m_data->m_narrowphaseGPU->setObjectTransformCpu(position, orientation, bodyIndex);
 }

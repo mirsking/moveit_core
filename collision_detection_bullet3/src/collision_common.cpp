@@ -65,7 +65,7 @@ struct BULLET3ShapeCache
     }
   }
 
-  static const unsigned int MAX_CLEAN_COUNT = 100; // every this many uses of the cache, a cleaning operation is executed (this is only removal of expired entries)
+  static const unsigned int MAX_CLEAN_COUNT = 10000; // every this many uses of the cache, a cleaning operation is executed (this is only removal of expired entries)
   std::map<boost::weak_ptr<const shapes::Shape>, BULLET3Geometry::ConstPtr> map_;
   unsigned int clean_count_;
   boost::mutex lock_;
@@ -366,6 +366,141 @@ BULLET3Geometry::ConstPtr createCollisionGeometry(const shapes::ShapeConstPtr &s
 {
   return createCollisionGeometry<b3Aabb, World::Object>(shape, scale, padding, obj, 0, manager);
 }
+
+void BULLET3Objects::convert2CollisionResult(const AllowedCollisionMatrix *acm, const CollisionRequest& req, CollisionResult& res)
+{
+    typedef std::pair<std::string, std::string> ContactIndex_t;
+    typedef std::map< std::pair<b3::CollisionObject, b3::CollisionObject>, ContactIndex_t > Contacts2IndexMap_t;
+    Contacts2IndexMap_t contacts2index_map_;
+
+    if(num_contacts_<=0)
+    {
+        res.collision = false;
+        res.contact_count = 0;
+        return;
+    }
+    else
+    {
+
+        res.contacts.clear();
+        int N = num_contacts_;
+        for(int i=0; i<N; i++)
+        {
+            b3::CollisionObject id1 = contacts_[i].getBodyA();
+            b3::CollisionObject id2 = contacts_[i].getBodyB();
+            /*
+            if(id1 > id2)
+            {
+                //swap id1 and id2, ensure id1 is smaller than id2
+                b3::CollisionObject tmp = id1;
+                id1 = id2;
+                id2 = tmp;
+            }
+            */
+
+            CollisionGeometryData::ConstPtr cd1 = getGeometry(id1);
+            CollisionGeometryData::ConstPtr cd2 = getGeometry(id2);
+            if(! cd1.get() || !cd2.get() )
+            {
+                continue;
+            }
+
+            logDebug("(%d) Collision between '%s' (type '%s') and '%s' (type '%s') is going to be checked",
+                                num_contacts_,
+                               cd1->getID().c_str(),
+                               cd1->getTypeString().c_str(),
+                               cd2->getID().c_str(),
+                               cd2->getTypeString().c_str());
+            // use the collision matrix (if any) to avoid certain collision checks
+            DecideContactFn dcf;
+            bool always_allow_collision = false;
+            if (acm)
+            {
+                AllowedCollision::Type type;
+                bool found = acm->getAllowedCollision(cd1->getID(), cd2->getID(), type);
+                if (found)
+                {
+                    // if we have an entry in the collision matrix, we read it
+                    if (type == AllowedCollision::ALWAYS)
+                    {
+                        always_allow_collision = true;
+                        if (req.verbose)
+                          logDebug("Collision between '%s' (type '%s') and '%s' (type '%s') is always allowed. No contacts are computed.",
+                                   cd1->getID().c_str(),
+                                   cd1->getTypeString().c_str(),
+                                   cd2->getID().c_str(),
+                                   cd2->getTypeString().c_str());
+                    }
+                    else if (type == AllowedCollision::CONDITIONAL)
+                    {
+                        acm->getAllowedCollision(cd1->getID(), cd2->getID(), dcf);
+                        if (req.verbose)
+                            logDebug("Collision between '%s' and '%s' is conditionally allowed", cd1->getID().c_str(), cd2->getID().c_str());
+                    }
+                }
+                else
+                {
+                    if (req.verbose)
+                      logDebug("Collision between '%s' (type '%s') and '%s' (type '%s') is stored.",
+                               cd1->getID().c_str(),
+                               cd1->getTypeString().c_str(),
+                               cd2->getID().c_str(),
+                               cd2->getTypeString().c_str());
+
+               }
+
+
+                if(always_allow_collision)
+                    num_contacts_--;
+                else
+                {
+
+                    if (req.verbose)
+                      logError("Handling contacts between '%s' (type '%s') and '%s' (type '%s').",
+                               cd1->getID().c_str(),
+                               cd1->getTypeString().c_str(),
+                               cd2->getID().c_str(),
+                               cd2->getTypeString().c_str());
+
+                    if(req.contacts && res.contacts.size() < req.max_contacts)
+                    {
+                        Contacts2IndexMap_t::iterator iter = contacts2index_map_.find(std::make_pair(id1, id2));
+                        if(iter==contacts2index_map_.end())
+                        {
+                            std::vector<Contact> cts(1);
+                            Contact& ct = cts[0];
+                            ct.body_name_1 = cd1->getID();
+                            ct.body_name_2 = cd2->getID();
+                            ContactIndex_t contact_index = std::make_pair(cd1->getID(), cd2->getID());
+                            res.contacts[contact_index] = cts;
+                            contacts2index_map_[std::make_pair(id1, id2)] = contact_index;
+                        }
+                        else
+                        {
+                            std::vector<Contact>& cts = res.contacts[iter->second];
+                            if(cts.size()<req.max_contacts_per_pair)
+                            {
+                                Contact ct;
+                                ct.body_name_1 = cd1->getID();
+                                ct.body_name_2 = cd2->getID();
+                                cts.push_back(ct);
+                            }
+                        }
+
+                    }
+                }
+            }
+        }
+        res.contact_count = std::min(num_contacts_, (int)res.contacts.size());
+        logError("Finally, get %d contacts", num_contacts_);
+        if(num_contacts_>0)
+            res.collision = true;
+        else
+            res.collision = false;
+    }
+}
+
+
 }
 
 namespace b3 {
